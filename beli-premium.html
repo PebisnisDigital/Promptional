@@ -106,7 +106,17 @@ body[data-step="done"] .example-strip{display:none}
  .stamp-phrase{opacity:0!important;transform:none!important;filter:none!important}
  .stamp-phrase:first-child{opacity:1!important}
 }
+
+/* The checkout is reused inside the landing page without touching payment logic. */
+html.checkout-embedded,html.checkout-embedded body{min-height:0!important;background:transparent!important}
+html.checkout-embedded body{display:block!important;margin:0!important;padding:0!important;overflow-x:hidden}
+html.checkout-embedded main{display:block!important;min-height:0!important;margin:0!important;width:100%!important}
+html.checkout-embedded .checkout-card{width:100%!important;max-width:none!important;padding:clamp(14px,4vw,23px)!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
+html.checkout-embedded .checkout-heading,html.checkout-embedded .example-strip{display:none!important}
+html.checkout-embedded .order-brief{margin-bottom:16px}
+html.checkout-embedded .stage h2{text-align:left}
 </style>
+<script>if(new URLSearchParams(location.search).get("embed")==="1"){document.documentElement.classList.add("checkout-embedded")}</script>
 </head>
 <body data-step="formStage">
 <main>
@@ -202,7 +212,8 @@ body[data-step="done"] .example-strip{display:none}
    if(existing&&existing.$id!==access.userId)await account.deleteSession({sessionId:'current'});
    if(!existing||existing.$id!==access.userId)await account.createSession({userId:access.userId,secret:access.secret});
    sessionStorage.removeItem('promptional_checkout_receipt');
-   location.replace('/member?first=1');
+   if(window.parent!==window&&new URLSearchParams(location.search).get('embed')==='1')window.parent.postMessage({type:'PROMPTIONAL_CHECKOUT_MEMBER'},location.origin);
+   else location.replace('/member?first=1');
   }catch(err){
    say(err.message||'Akun aktif, tetapi sesi belum berhasil. Coba tombol sekali lagi.','error');
    $('enterButton').disabled=false;
@@ -272,6 +283,21 @@ body[data-step="done"] .example-strip{display:none}
    }
   }catch(err){$('payButton').disabled=true;say('Layanan pembayaran belum tersedia. Silakan hubungi Admin.','error')}
  })();
+})();
+</script>
+
+<script>
+(function(){
+ if(new URLSearchParams(location.search).get("embed")!=="1"||window.parent===window)return;
+ const panel=document.getElementById("checkoutPanel");
+ const notify=function(){
+  const height=Math.ceil(Math.max(document.documentElement.scrollHeight,document.body.scrollHeight,panel.getBoundingClientRect().height));
+  parent.postMessage({type:"PROMPTIONAL_CHECKOUT_SIZE",height:height},location.origin);
+ };
+ window.addEventListener("load",notify);
+ if("ResizeObserver" in window)new ResizeObserver(notify).observe(panel);
+ if("MutationObserver" in window)new MutationObserver(function(){requestAnimationFrame(notify)}).observe(panel,{subtree:true,attributes:true,attributeFilter:["hidden","class","style"]});
+ requestAnimationFrame(notify);
 })();
 </script>
 </body>
