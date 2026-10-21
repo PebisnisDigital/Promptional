@@ -173,6 +173,22 @@ h1 em{color:var(--orange);font-style:normal}
 @media(max-width:380px){h1{font-size:29px}.description{font-size:10px}.kicker{display:none}.float-card{width:92px}.platform-grid{gap:6px}.platform-btn{min-height:48px;padding:6px 5px;gap:6px}.platform-btn:nth-child(5){width:calc((100% - 6px)/2)}.platform-name{font-size:10px}.platform-handle{font-size:8px}.guide-note{font-size:8.5px}}
 @media(max-height:650px) and (min-width:700px){.hero-copy{top:10%}h1{font-size:clamp(35px,5vw,55px)}.model-wrap{height:67%}.bottom-action{bottom:3%}}
 @media(prefers-reduced-motion:reduce){.float-card,.float-card img,.platform-btn,.stamp-line,.platform-btn::after{transition:none!important;animation:none!important}.stamp-line{opacity:1!important;transform:none!important;filter:none!important}.platform-btn::after{display:none}}
+
+/* Premium checkout section: appended to original LP; existing hero is untouched. */
+.premium-registration{position:relative;padding:clamp(46px,7vw,85px) 16px clamp(52px,7vw,95px);scroll-margin-top:10px;background:radial-gradient(ellipse 70% 33% at 50% 3%,#50271280,transparent 78%),linear-gradient(#090808,#170f0b 65%,#080808);border-top:1px solid #51311f}
+.premium-registration-inner{width:min(540px,100%);margin:0 auto;text-align:center}
+.premium-eyebrow{display:inline-block;border:1px solid #a5673b9c;border-radius:100px;padding:6px 14px;color:#ffc68c;font-size:10px;letter-spacing:.14em;font-weight:900}
+.premium-registration h2{font:900 clamp(28px,5.4vw,45px)/1.09 var(--heading);margin:15px 0 12px;letter-spacing:-.04em;color:#fff2e7}
+.premium-registration h2 strong{color:var(--orange)}
+.premium-registration-desc{color:#e3c7b0;max-width:450px;margin:0 auto 18px;font-size:clamp(12px,2.5vw,14px);line-height:1.7}
+.premium-registration-desc b{color:#ffc48a}
+.premium-benefits{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:center;margin:0 auto 23px}
+.premium-benefits span{border:1px solid #7447319c;background:#25170fc9;border-radius:30px;color:#f6d0b0;padding:6px 11px;font-size:11px;font-weight:800}
+.premium-embed-shell{overflow:hidden;border:1px solid #785237;border-radius:19px;background:linear-gradient(155deg,#201712,#0d0d0e 72%);box-shadow:0 21px 75px #0008}
+.premium-embed-frame{display:block;width:100%;height:440px;min-height:440px;border:0;background:transparent}
+.premium-security{color:#baa390;font-size:11px;line-height:1.5;margin:13px 0 0}
+.premium-return{display:inline-block;margin:22px 0 0;color:#f4b678;text-decoration:underline;font-size:12px;font-weight:700;text-underline-offset:4px}
+@media(max-width:420px){.premium-registration{padding:43px 12px 60px}.premium-embed-shell{border-radius:13px}.premium-benefits{gap:6px}.premium-benefits span{font-size:10px;padding:6px 9px}}
 </style>
 </head>
 <body>
@@ -183,7 +199,7 @@ h1 em{color:var(--orange);font-style:normal}
  <header class="topbar">
   <a href="#hero" class="brand" aria-label="PROMPTIONAL beranda"><img src="/assets/promptional-icon.svg" alt="" width="29" height="29"><span>PROMPT<strong>IONAL</strong></span></a>
   <span class="kicker">PROMPT AI GRATIS · SETIAP HARI</span>
-  <a href="/beli-premium.html" class="premium-top">BELI PREMIUM ↗</a>
+  <a href="#daftar" class="premium-top">BELI PREMIUM ↗</a>
  </header>
  <div class="stage" aria-label="Contoh visual prompt AI dari PROMPTIONAL">
   <div class="gallery gallery-back" id="gallery">
@@ -235,8 +251,22 @@ h1 em{color:var(--orange);font-style:normal}
   </nav>
   <div class="get-guide" role="group" aria-label="Petunjuk memilih platform">
    <p class="guide-note">Pilih salah satu tombol. <strong>Telegram:</strong> tekan START/MULAI di bot. <strong>Media sosial:</strong> ikuti @promptional.</p>
-   <a class="premium-quick" href="/beli-premium.html">MAU KOLEKSI LENGKAP? <b>BUKA PREMIUM →</b></a>
+   <a class="premium-quick" href="#daftar">MAU KOLEKSI LENGKAP? <b>BUKA PREMIUM →</b></a>
   </div>
+ </div>
+</section>
+
+<section class="premium-registration" id="daftar" aria-labelledby="premium-registration-title">
+ <div class="premium-registration-inner">
+  <span class="premium-eyebrow">PROMPTIONAL PREMIUM · AKSES 365 HARI</span>
+  <h2 id="premium-registration-title">Mau semua prompt?<br><strong>Daftar di sini.</strong></h2>
+  <p class="premium-registration-desc">Tetap bisa dapat prompt gratis setiap hari. Kalau ingin akses <b>Member Area Premium</b> selama 365 hari, cukup isi formulir di bawah dan bayar melalui QRIS.</p>
+  <div class="premium-benefits"><span>✓ Akses 365 hari</span><span>✓ Member Area</span><span>✓ Tanpa iklan</span></div>
+  <div class="premium-embed-shell">
+   <iframe id="premiumCheckoutFrame" class="premium-embed-frame" src="/beli-premium?embed=1" title="Formulir pendaftaran PROMPTIONAL Premium dan pembayaran QRIS" loading="lazy" scrolling="no" referrerpolicy="same-origin"></iframe>
+  </div>
+  <p class="premium-security">Pembayaran QRIS diproses melalui sistem checkout PROMPTIONAL yang sama. Jangan membayar dua kali bila status belum berubah.</p>
+  <a class="premium-return" href="#hero">↑ Kembali ke halaman utama</a>
  </div>
 </section>
 </main>
@@ -364,6 +394,22 @@ h1 em{color:var(--orange);font-style:normal}
  document.addEventListener("keydown",e=>{if(e.key==="Escape"&&!lightbox.hidden)shut()});
  const model=document.querySelector(".model");
  model.addEventListener("error",()=>{model.src="https://sgp.cloud.appwrite.io/v1/storage/buckets/prompt-previews/files/bp001/view?project=badai-prompt-umkm"},{once:true});
+})();
+</script>
+
+<script>
+(function(){
+ "use strict";
+ const checkoutFrame=document.getElementById("premiumCheckoutFrame");
+ if(!checkoutFrame)return;
+ window.addEventListener("message",function(event){
+  if(event.origin!==location.origin||event.source!==checkoutFrame.contentWindow||!event.data)return;
+  if(event.data.type==="PROMPTIONAL_CHECKOUT_SIZE"&&Number.isFinite(event.data.height)){
+   const h=Math.min(1500,Math.max(385,Math.ceil(event.data.height)));
+   if(Math.abs(parseFloat(checkoutFrame.style.height||"0")-h)>3)checkoutFrame.style.height=h+"px";
+  }
+  if(event.data.type==="PROMPTIONAL_CHECKOUT_MEMBER")location.replace("/member?first=1");
+ });
 })();
 </script>
 </body>
