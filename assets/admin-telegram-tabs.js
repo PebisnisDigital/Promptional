@@ -64,14 +64,8 @@ for(const id of ['mktEditOffer','mktDefaultOffer']){
 }
 $('tgBroadcastText').addEventListener('input',()=>preview($('tgBroadcastPreview'),$('tgBroadcastText').value));
 $('tgReplyText').addEventListener('input',()=>preview($('tgReplyPreview'),$('tgReplyText').value));
-const mktOffer=$('mktEditOffer'),mktPreview=$('mktMockOffer');
-mktOffer?.addEventListener('input',()=>preview(mktPreview,mktOffer.value));
-const domObserver=new MutationObserver(()=>{
- if(!mktOffer||!mktPreview||mktOffer.closest('[hidden]'))return;
- // The original editor updates preview via textContent, so enhance rich format after each update.
- if(!mktPreview.querySelector('b,i,u,s,code,a')&&/<(?:b|i|u|s|code|a\b)/.test(mktOffer.value))preview(mktPreview,mktOffer.value);
-});
-if(mktPreview)domObserver.observe(mktPreview,{childList:true});
+// Marketing renders its own Telegram conversation preview, including rich-text
+// upselling. Do not bind the retired mktMockOffer widget here.
 function renderDraft(){
  $('tgBroadcastState').textContent=!draft?'Belum ada draf broadcast.':[
   'Status: '+(draft.status==='completed'?'SELESAI':draft.status==='draft'?'DRAF':'SEDANG DIKIRIM'),
