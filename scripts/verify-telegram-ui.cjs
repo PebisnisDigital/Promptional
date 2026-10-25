@@ -63,7 +63,7 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   await page.locator('[data-tg-tab="content"]').click();
   await page.locator('#mktPromptList .mkt-prompt').first().waitFor();
   assert.match(await page.locator('#mktStats').innerText(),/0\/365/);
-  assert.match(await page.locator('#mktPromptList').innerText(),/BELUM DIJADWALKAN/);
+  assert.match(await page.locator('#mktPromptList').innerText(),/SIAP DIJADWALKAN/);
   assert.equal(await page.locator('#mktEnabled option[value="true"]').evaluate(el=>el.disabled),true);
   await page.locator('[data-mkt-pick="scene_prompts:p1"]').click();
   await page.locator('[data-mkt-day="1"]').click();
@@ -73,14 +73,22 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   await page.waitForFunction(()=>document.getElementById('mktNotice').textContent.includes('disimpan'));
   assert.match(await page.locator('[data-mkt-day="1"]').innerText(),/Foto Editorial/);
   assert.equal(slots.get(1).cta_label,'UPGRADE SEKARANG');
+  assert.equal(await page.locator('#mktPromptList .mkt-prompt').count(),1);
+  assert.equal(await page.locator('[data-mkt-prompt="scene_prompts:p1"]').count(),0);
+  assert.match(await page.locator('#mktLibraryCount').innerText(),/1 tersedia · 1 dijadwalkan/);
+  assert.equal(await page.locator('#mktStats .mkt-stat').nth(3).locator('b').innerText(),'1');
   if(width===1280){
    await page.locator('[data-mkt-prompt="scene_prompts:p2"]').dragTo(page.locator('[data-mkt-day="3"]'));
-   await page.waitForFunction(()=>document.getElementById('mktNotice').textContent.includes('berhasil dijadwalkan'));
+   await page.waitForFunction(()=>document.getElementById('mktNotice').textContent.includes('berpindah ke hari 3'));
    assert.equal(slots.get(3).prompt_id,'p2');
+   assert.equal(await page.locator('#mktPromptList .mkt-prompt').count(),0);
+   assert.match(await page.locator('#mktPromptList').innerText(),/Semua prompt terbit sudah masuk kalender/);
+   assert.match(await page.locator('#mktLibraryCount').innerText(),/0 tersedia · 2 dijadwalkan/);
    await page.locator('[data-mkt-day="1"]').dragTo(page.locator('[data-mkt-day="2"]'));
    await page.waitForFunction(()=>/dipindahkan|ditukar/.test(document.getElementById('mktNotice').textContent));
    assert.match(await page.locator('[data-mkt-day="2"]').innerText(),/Foto Editorial/);
    assert.equal(slots.get(2).prompt_id,'p1');
+   assert.equal(await page.locator('#mktPromptList .mkt-prompt').count(),0);
   }
   const dayToTest=width===1280?2:1;
   await page.locator('#mktTestDay').fill(String(dayToTest));
@@ -97,6 +105,21 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   await page.waitForFunction(()=>document.getElementById('mktNotice').textContent.includes('Pengaturan Konten Telegram tersimpan'));
   assert.equal(marketingSettings.loop_campaign,true);
   assert.equal(marketingSettings.enabled,false);
+  if(width===1280){
+   await page.locator('[data-mkt-day="3"]').dragTo(page.locator('#mktLibraryPanel'));
+   await page.waitForFunction(()=>document.getElementById('mktNotice').textContent.includes('kembali ke perpustakaan'));
+   assert.equal(slots.has(3),false);
+   assert.equal(await page.locator('[data-mkt-prompt="scene_prompts:p2"]').count(),1);
+   assert.equal(await page.locator('[data-mkt-prompt="scene_prompts:p1"]').count(),0);
+   assert.match(await page.locator('#mktLibraryCount').innerText(),/1 tersedia · 1 dijadwalkan/);
+  }else{
+   await page.locator('[data-mkt-day="1"]').click();
+   await page.locator('#mktDeleteSlot').click();
+   await page.waitForFunction(()=>document.getElementById('mktNotice').textContent.includes('kembali ke perpustakaan'));
+   assert.equal(slots.has(1),false);
+   assert.equal(await page.locator('#mktPromptList .mkt-prompt').count(),2);
+   assert.match(await page.locator('#mktLibraryCount').innerText(),/2 tersedia · 0 dijadwalkan/);
+  }
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   assert(calls.filter(x=>x.action?.startsWith('marketing-')).every(x=>x.action!=='marketing-broadcast'));
   assert.deepStrictEqual(pageErrors,[]);

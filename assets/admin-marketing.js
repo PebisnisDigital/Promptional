@@ -8,7 +8,7 @@
   date.setUTCDate(date.getUTCDate()+n-1);
   return date.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
  };
-  let state=null,loaded=false,busy=false,page=0,selectedPrompt=null,selectedDay=null,editing=null,candidates=[];
+  let state=null,loaded=false,busy=false,page=0,selectedPrompt=null,selectedDay=null,editing=null,candidates=[],draggingSlotDay=null;
  async function request(action,body={}){
   const {jwt}=await account.createJWT();
   const response=await fetch('/api/telegram/manager',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json',authorization:'Bearer '+jwt},body:JSON.stringify({action,...body}),cache:'no-store'});
@@ -39,12 +39,46 @@
    [state.settings.enabled&&state.server_gate?'AKTIF':'DRAF','Status jadwal'],
     [filled+'/365','Hari terjadwal manual'],
     [state.stats.empty,'Hari kosong'],
-    [state.stats.published??candidates.length,'Prompt di perpustakaan'],
-    [state.stats.unscheduled??0,'Belum dijadwalkan']
+    [availablePrompts().length,'Tersisa di perpustakaan'],
+    [state.stats.published??candidates.length,'Total prompt terbit']
   ];
   $('mktStats').innerHTML=cards.map(([n,label])=>'<div class="mkt-stat"><b>'+escape(n)+'</b><span>'+escape(label)+'</span></div>').join('');
  }
  const slots=()=>new Map((state?.slots||[]).map(s=>[s.day,s]));
+ const promptKey=p=>p.source+':'+(p.id||p.prompt_id);
+ const availablePrompts=()=>{
+  const scheduled=new Set((state?.slots||[]).filter(s=>!s.needs_review).map(promptKey));
+  return candidates.filter(p=>!scheduled.has(promptKey(p)));
+ };
+ function captureCard(el){
+  return el?{rect:el.getBoundingClientRect(),clone:el.cloneNode(true)}:null;
+ }
+ function capturePrompt(prompt){
+  const key=promptKey(prompt);
+  return captureCard([...$('mktPromptList').querySelectorAll('[data-mkt-prompt]')].find(el=>el.dataset.mktPrompt===key));
+ }
+ function animateTransfer(origin,target,arrivalClass){
+  if(!target)return;
+  target.classList.add(arrivalClass);
+  target.addEventListener('animationend',()=>target.classList.remove(arrivalClass),{once:true});
+  if(!origin||matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  const from=origin.rect,to=target.getBoundingClientRect();
+  if(from.bottom<0||from.top>innerHeight||to.bottom<0||to.top>innerHeight)return;
+  const ghost=origin.clone;
+  ghost.removeAttribute('draggable');ghost.removeAttribute('data-mkt-prompt');ghost.removeAttribute('data-mkt-day');
+  ghost.querySelector('button')?.remove();
+  ghost.classList.add('mkt-transfer-ghost');
+  Object.assign(ghost.style,{left:from.left+'px',top:from.top+'px',width:from.width+'px',height:from.height+'px'});
+  document.body.appendChild(ghost);
+  const dx=to.left+to.width/2-from.left-from.width/2,dy=to.top+to.height/2-from.top-from.height/2;
+  const scale=Math.min(.65,to.width/from.width);
+  const animation=ghost.animate([
+   {transform:'translate3d(0,0,0) scale(1)',opacity:.94},
+   {transform:'translate3d('+dx+'px,'+dy+'px,0) scale('+scale+')',opacity:.08}
+  ],{duration:550,easing:'cubic-bezier(.22,1,.36,1)',fill:'forwards'});
+  void animation.finished.then(()=>ghost.remove(),()=>ghost.remove());
+ }
+ function updateBoard(){statistics();renderCalendar();renderCandidates()}
  function renderCalendar(){
   const source=slots(),first=page*30+1,last=Math.min(365,first+29);
   $('mktPage').innerHTML=Array.from({length:13},(_,i)=>{const f=1+i*30,l=Math.min(365,f+29);return '<option value="'+i+'">Bagian '+(i+1)+' · Hari '+f+'–'+l+'</option>'}).join('');
@@ -69,9 +103,12 @@
    el.addEventListener('dragstart',e=>{
     const day=Number(el.dataset.mktDay);
     if(!source.has(day)){e.preventDefault();return}
+    draggingSlotDay=day;
+    el.classList.add('is-dragging');
     e.dataTransfer.effectAllowed='move';
     e.dataTransfer.setData('text/plain','slot:'+day);
    });
+   el.addEventListener('dragend',()=>{draggingSlotDay=null;el.classList.remove('is-dragging');$('mktLibraryPanel').classList.remove('drop-target')});
    el.addEventListener('dragover',e=>{e.preventDefault();el.classList.add('drop-target')});
    el.addEventListener('dragleave',()=>el.classList.remove('drop-target'));
    el.addEventListener('drop',e=>{
@@ -87,19 +124,21 @@
  }
  function renderCandidates(){
   const q=$('mktSearch').value.trim().toLowerCase();
-  const filtered=candidates.filter(p=>[p.title,p.category,p.summary].join(' ').toLowerCase().includes(q));
-  const scheduled=new Map((state?.slots||[]).filter(s=>!s.needs_review).map(s=>[s.prompt_id,s.day]));
+  const available=availablePrompts();
+  const filtered=available.filter(p=>[p.title,p.category,p.summary].join(' ').toLowerCase().includes(q));
+  $('mktLibraryCount').textContent=available.length+' tersedia · '+(candidates.length-available.length)+' dijadwalkan';
   $('mktPromptList').innerHTML=filtered.length?filtered.map(p=>{
    const yes=selectedPrompt?.id===p.id&&selectedPrompt?.source===p.source;
-   const day=scheduled.get(p.id);
    return '<div class="mkt-prompt" draggable="true" data-mkt-prompt="'+escape(p.source+':'+p.id)+'" data-selected="'+yes+'">'+
      (p.preview_url?'<img src="'+escape(p.preview_url)+'" alt="" loading="lazy" referrerpolicy="no-referrer">':'<span class="mkt-prompt-placeholder">TEKS</span>')+
-    '<div class="mkt-prompt-meta"><strong>'+escape(p.title)+'</strong><p>'+escape(p.category||'Prompt visual')+'</p><small class="mkt-prompt-schedule">'+(day?'TERJADWAL HARI '+day:'BELUM DIJADWALKAN')+'</small><button type="button" class="btn dark" data-mkt-pick="'+escape(p.source+':'+p.id)+'">'+(yes?'DIPILIH ✓':'PILIH PROMPT')+'</button></div></div>';
-  }).join(''):'<p class="mkt-empty">Tidak ada prompt terbit yang cocok. Coba kata pencarian lain.</p>';
+    '<div class="mkt-prompt-meta"><strong>'+escape(p.title)+'</strong><p>'+escape(p.category||'Prompt visual')+'</p><small class="mkt-prompt-schedule">SIAP DIJADWALKAN</small><button type="button" class="btn dark" data-mkt-pick="'+escape(p.source+':'+p.id)+'">'+(yes?'DIPILIH ✓':'PILIH PROMPT')+'</button></div></div>';
+  }).join(''):'<p class="mkt-empty">'+(available.length?'Tidak ada prompt yang cocok. Coba kata pencarian lain.':'Semua prompt terbit sudah masuk kalender. Kosongkan hari untuk mengembalikan prompt ke sini.')+'</p>';
   $('mktLoadMore').hidden=true;
   document.querySelectorAll('[data-mkt-prompt]').forEach(el=>el.addEventListener('dragstart',e=>{
-   e.dataTransfer.effectAllowed='copy';e.dataTransfer.setData('text/plain','prompt:'+el.dataset.mktPrompt);
+   el.classList.add('is-dragging');
+   e.dataTransfer.effectAllowed='move';e.dataTransfer.setData('text/plain','prompt:'+el.dataset.mktPrompt);
   }));
+  document.querySelectorAll('[data-mkt-prompt]').forEach(el=>el.addEventListener('dragend',()=>el.classList.remove('is-dragging')));
   document.querySelectorAll('[data-mkt-pick]').forEach(el=>el.addEventListener('click',()=>{
    selectedPrompt=candidates.find(x=>x.source+':'+x.id===el.dataset.mktPick);
    $('mktSelection').textContent=selectedPrompt?selectedPrompt.title+' dipilih':'Belum memilih prompt';
@@ -108,6 +147,7 @@
  }
   function loadCandidates(){
    candidates=state?.library||[];
+   if(selectedPrompt&&!availablePrompts().some(p=>promptKey(p)===promptKey(selectedPrompt)))selectedPrompt=null;
    renderCandidates();
   }
  function chooseDay(day){
@@ -134,14 +174,29 @@
  async function assignPrompt(day,prompt){
   const previous=slots().get(day);
   if(previous&&previous.prompt_id!==prompt.id&&!confirm('Ganti prompt yang sudah dijadwalkan untuk hari '+day+'?'))return;
+  const origin=capturePrompt(prompt);
   await act(async()=>{
    await request('marketing-slot-save',{day,source:prompt.source,prompt_id:prompt.id,
     offer_text:state.settings.default_offer,cta_label:state.settings.default_cta_label,
     cta_type:state.settings.default_cta_type,cta_url:state.settings.default_cta_url});
    state=await request('marketing-get');selectedPrompt=null;selectedDay=day;editing=null;
    $('mktEditor').hidden=true;$('mktSelection').textContent='Belum memilih prompt';
-   statistics();renderCalendar();renderCandidates();
-   notice(prompt.title+' berhasil dijadwalkan untuk hari '+day+'. Klik harinya jika ingin mengubah upselling.','success');
+   updateBoard();animateTransfer(origin,document.querySelector('[data-mkt-day="'+day+'"]'),'mkt-day-arrived');
+   notice(prompt.title+' berpindah ke hari '+day+'. Perpustakaan otomatis berkurang satu.','success');
+  });
+ }
+ async function returnToLibrary(day){
+  const existing=slots().get(day);
+  if(!existing||!confirm('Kembalikan prompt hari '+day+' ke perpustakaan? Jadwal hari ini akan dikosongkan.'))return;
+  const origin=captureCard(document.querySelector('[data-mkt-day="'+day+'"]'));
+  await act(async()=>{
+   await request('marketing-slot-delete',{day});
+   state=await request('marketing-get');selectedPrompt=null;editing=null;
+   $('mktEditor').hidden=true;$('mktSelection').textContent='Belum memilih prompt';
+   updateBoard();
+   const returned=[...$('mktPromptList').querySelectorAll('[data-mkt-prompt]')].find(el=>el.dataset.mktPrompt===promptKey(existing));
+   animateTransfer(origin,returned||$('mktLibraryCount'),returned?'mkt-prompt-arrived':'mkt-library-arrived');
+   notice('Prompt hari '+day+' kembali ke perpustakaan. Hari tersebut sekarang kosong.','success');
   });
  }
  function refreshMock(){
@@ -156,7 +211,7 @@
    await request('marketing-slot-move',{from,to});
    const updated=await request('marketing-get');state=updated;
    selectedDay=to;selectedPrompt=null;
-   statistics();renderCalendar();renderCandidates();notice('Konten dari hari '+from+' berhasil '+(slots().has(from)?'ditukar':'dipindahkan')+' ke hari '+to+'.','success');
+   updateBoard();notice('Konten dari hari '+from+' berhasil '+(slots().has(from)?'ditukar':'dipindahkan')+' ke hari '+to+'.','success');
   });
  }
 
@@ -192,7 +247,7 @@
   state=await request('marketing-get');
   settingsForm();statistics();renderCalendar();
   await loadTesters();
-   loadCandidates();loaded=true;
+   loadCandidates();statistics();loaded=true;
    notice('Perpustakaan sinkron: '+state.stats.published+' prompt tayang. '+state.stats.filled+' hari dijadwalkan manual; hari kosong tidak mengirim. Status '+(state.settings.enabled&&state.server_gate?'aktif':'draf')+'.','success');
  }
  $('mktPage').addEventListener('change',e=>{page=Number(e.target.value);renderCalendar()});
@@ -208,18 +263,32 @@
  })});
  $('mktEditForm').addEventListener('submit',e=>{e.preventDefault();void act(async()=>{
   if(!selectedDay||!editing)throw Error('Pilih hari dan prompt dahulu.');
+  const origin=selectedPrompt?capturePrompt(selectedPrompt):null;
+  const assigned=Boolean(selectedPrompt);
   const body={day:selectedDay,source:editing.source,prompt_id:editing.id||editing.prompt_id,offer_text:$('mktEditOffer').value,cta_label:$('mktEditLabel').value,cta_type:$('mktEditType').value,cta_url:$('mktEditUrl').value};
   await request('marketing-slot-save',body);
   selectedPrompt=null;editing=null;$('mktEditor').hidden=true;
-  state=await request('marketing-get');statistics();renderCalendar();renderCandidates();
+  state=await request('marketing-get');updateBoard();
+  if(assigned)animateTransfer(origin,document.querySelector('[data-mkt-day="'+selectedDay+'"]'),'mkt-day-arrived');
   $('mktSelection').textContent='Belum memilih prompt';
   notice('Hari '+selectedDay+' disimpan! Preview dan tombol CTA mengikuti pengaturan hari tersebut.','success');
  })});
  $('mktCloseEditor').addEventListener('click',()=>{$('mktEditor').hidden=true;editing=null});
- $('mktDeleteSlot').addEventListener('click',()=>{if(!selectedDay||!confirm('Kosongkan konten hari '+selectedDay+'?'))return;void act(async()=>{
-  await request('marketing-slot-delete',{day:selectedDay});
-  state=await request('marketing-get');$('mktEditor').hidden=true;editing=null;selectedPrompt=null;statistics();renderCalendar();renderCandidates();notice('Hari '+selectedDay+' dikosongkan.','success');
- })});
+ $('mktDeleteSlot').addEventListener('click',()=>{if(selectedDay)void returnToLibrary(selectedDay)});
+ const libraryPanel=$('mktLibraryPanel');
+ libraryPanel.addEventListener('dragover',e=>{
+  if(!draggingSlotDay)return;
+  e.preventDefault();e.dataTransfer.dropEffect='move';libraryPanel.classList.add('drop-target');
+ });
+ libraryPanel.addEventListener('dragleave',e=>{
+  if(!libraryPanel.contains(e.relatedTarget))libraryPanel.classList.remove('drop-target');
+ });
+ libraryPanel.addEventListener('drop',e=>{
+  libraryPanel.classList.remove('drop-target');
+  if(!draggingSlotDay)return;
+  e.preventDefault();const day=draggingSlotDay;draggingSlotDay=null;
+  void returnToLibrary(day);
+ });
  ['mktEditOffer','mktEditLabel','mktEditType','mktEditUrl'].forEach(id=>$(id).addEventListener('input',refreshMock));
  document.querySelector('[data-tg-tab="content"]')?.addEventListener('click',()=>{if(!loaded)void act(refresh)});
 })();

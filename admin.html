@@ -339,7 +339,7 @@ main{padding:16px}.view{display:none}.view.on{display:block}.title{display:flex;
   <div class="mkt-content-heading"><div><span class="eyebrow">1 · SATU PERPUSTAKAAN PROMPT</span><h2>Terbit di Member Area → Tersedia di Telegram</h2><p>Prompt baru otomatis masuk perpustakaan, tetapi TIDAK dikirim sebelum Teh menjadwalkannya secara manual.</p></div></div>
   <div class="mkt-workspace">
     <section class="mkt-calendar-panel" aria-labelledby="mktCalendarTitle">
-      <div class="mkt-panel-header"><div><span class="eyebrow">JADWAL PILIHAN ADMIN</span><h2 id="mktCalendarTitle">Kalender 365 Hari</h2><p>Hari kosong tidak akan mengirim prompt. Seret prompt ke tanggal pilihan, atau tukar jadwal yang sudah tersimpan.</p></div><span id="mktSelection" class="mkt-selection">Belum memilih prompt</span></div>
+      <div class="mkt-panel-header"><div><span class="eyebrow">JADWAL PILIHAN ADMIN</span><h2 id="mktCalendarTitle">Kalender 365 Hari</h2><p>Seret prompt ke hari pilihan. Kartu berpindah dari perpustakaan ke kalender; hari kosong tidak mengirim pesan.</p></div><span id="mktSelection" class="mkt-selection">Belum memilih prompt</span></div>
       <div class="mkt-calendar-toolbar">
         <button type="button" class="btn dark sm" id="mktPrev" aria-label="30 hari sebelumnya">‹</button>
         <select id="mktPage" aria-label="Bagian kalender"></select>
@@ -349,12 +349,12 @@ main{padding:16px}.view{display:none}.view.on{display:block}.title{display:flex;
       <div class="mkt-calendar-grid" id="mktCalendar" aria-label="Kalender konten 365 hari"></div>
       <div class="mkt-day-detail" id="mktDayDetail" role="status">Pilih hari untuk mengatur prompt.</div>
     </section>
-    <section class="mkt-library-panel" aria-labelledby="mktLibraryTitle">
-      <div class="mkt-panel-header"><div><span class="eyebrow">SUMBER MEMBER AREA</span><h2 id="mktLibraryTitle">Perpustakaan Prompt Telegram</h2><p>Semua prompt yang terbit siap dipilih. Seret ke kalender untuk menjadwalkan; gambar dan teks tetap mengikuti data Member Area.</p></div></div>
+    <section class="mkt-library-panel" id="mktLibraryPanel" aria-labelledby="mktLibraryTitle">
+      <div class="mkt-panel-header"><div><span class="eyebrow">SUMBER MEMBER AREA</span><h2 id="mktLibraryTitle">Perpustakaan Prompt Telegram</h2><p>Di sini hanya tersisa prompt yang belum dijadwalkan. Seret ke kalender untuk memindahkannya.</p></div><span id="mktLibraryCount" class="mkt-library-count" aria-live="polite">Memuat…</span></div>
       <div class="mkt-library-search"><input type="search" id="mktSearch" placeholder="Cari semua prompt tayang…" aria-label="Cari prompt"></div>
       <div class="mkt-prompt-list" id="mktPromptList"></div>
       <button type="button" class="btn dark mkt-load-more" id="mktLoadMore" hidden aria-hidden="true">MUAT PROMPT BERIKUTNYA</button>
-      <p class="mkt-footnote">Desktop: seret prompt ke hari tujuan, langsung tersimpan. HP: ketuk PILIH PROMPT → hari tujuan → SIMPAN. Prompt yang belum dijadwalkan tetap di perpustakaan.</p>
+      <p class="mkt-footnote">Desktop: seret prompt ke kalender untuk memindahkan. Seret dari kalender kembali ke sini untuk membatalkan jadwal. HP: ketuk PILIH PROMPT → hari tujuan → SIMPAN; ketuk hari → KOSONGKAN HARI untuk mengembalikannya. Seluruh prompt tetap tersimpan di Member Area.</p>
     </section>
   </div>
   <section class="mkt-editor" id="mktEditor" aria-labelledby="mktEditorTitle" hidden>
