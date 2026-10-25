@@ -9,7 +9,7 @@
   return date.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
  };
   let state=null,loaded=false,busy=false,page=0,selectedPrompt=null,selectedDay=null,editing=null,candidates=[],draggingSlotDay=null;
-  const previewCache=new Map();let previewTicket=0,previewContent=null,previewError='';
+  const previewCache=new Map();let previewTicket=0,previewContent=null,previewError='',previewFocus='cta';
  async function request(action,body={}){
   const {jwt}=await account.createJWT();
   const response=await fetch('/api/telegram/manager',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json',authorization:'Bearer '+jwt},body:JSON.stringify({action,...body}),cache:'no-store'});
@@ -154,6 +154,7 @@
   }
  function chooseDay(day){
   selectedDay=day;
+  previewFocus='cta';
   const slot=slots().get(day);
   editing=selectedPrompt||slot||null;
   renderCalendar();
@@ -221,6 +222,13 @@
   if(type==='member')return 'https://promptional.vercel.app/member';
   try{const u=new URL($('mktEditUrl').value);if(u.protocol!=='https:'||u.username||u.password||u.port||!['promptional.vercel.app','badaiprompt.vercel.app'].includes(u.hostname))return '';return u.href}catch{return ''}
  }
+ function scrollPreview(){
+  const messages=$('mktPreviewMessages');
+  const cta=previewFocus==='cta';
+  $('mktPreviewStart').setAttribute('aria-pressed',String(!cta));
+  $('mktPreviewCta').setAttribute('aria-pressed',String(cta));
+  messages.scrollTop=cta?messages.scrollHeight:0;
+ }
  async function loadPreview(force=false){
   const chosen=editing,identifier=chosen?.id||chosen?.prompt_id;
   if(!identifier)return;
@@ -249,10 +257,13 @@
   const offerText=offer+'\n\nPesan gratis akan dihapus setelah '+deletion+' jam. Prompt Free berikutnya sesuai kalender harian admin.';
   const upsell='<div class="mkt-tg-message"><div class="mkt-tg-text">'+telegramMarkup(offerText)+'</div>'+(destination&&label?'<a class="mkt-tg-button" href="'+escape(destination)+'" target="_blank" rel="noopener noreferrer">'+escape(label)+' ↗</a>':'<span class="mkt-tg-button" aria-disabled="true">'+escape(label||'TOMBOL CTA BELUM LENGKAP')+'</span>')+'<div class="mkt-tg-footer">'+escape(state.settings.send_time)+' ✓</div></div>';
   messages.innerHTML=headline+promptBubbles+upsell;
+  scrollPreview();
   const image=messages.querySelector('.mkt-tg-photo');if(image)image.addEventListener('error',()=>{
    const fallback=document.createElement('div');fallback.className='mkt-tg-photo-fallback';fallback.textContent='Gambar tidak berhasil dimuat di preview. Periksa URL gambar.';image.replaceWith(fallback);
    const audit=checks.querySelectorAll('.mkt-preview-check')[1];if(audit){audit.dataset.level='warning';audit.querySelector('b').textContent='! Gambar gagal dimuat';audit.querySelector('p').textContent='Pastikan URL gambar HTTPS dapat dibuka secara publik agar Telegram bisa mengambil foto.'}
+   scrollPreview();
   },{once:true});
+  if(image)image.addEventListener('load',scrollPreview,{once:true});
   const slot=slots().get(selectedDay),isAssigned=Boolean(slot&&slot.prompt_id===p.id&&!selectedPrompt);
   const unchanged=isAssigned&&slot.offer_text===offer&&slot.cta_label===label&&slot.cta_type===type&&(slot.cta_url||'')===$('mktEditUrl').value;
   const checksList=[
@@ -317,6 +328,8 @@
  $('mktRefresh').addEventListener('click',()=>void act(refresh));
  $('mktDefaultType').addEventListener('change',()=>{$('mktDefaultUrl').disabled=$('mktDefaultType').value!=='url'});
  $('mktDeleteHours').addEventListener('input',renderPreview);
+ $('mktPreviewStart').addEventListener('click',()=>{previewFocus='start';scrollPreview()});
+ $('mktPreviewCta').addEventListener('click',()=>{previewFocus='cta';scrollPreview()});
  $('mktSettingsForm').addEventListener('submit',e=>{e.preventDefault();void act(async()=>{
   const body={start_date:$('mktStartDate').value,send_time:$('mktTime').value,delete_hours:Number($('mktDeleteHours').value),enabled:$('mktEnabled').value==='true',loop_campaign:$('mktLoop').checked,default_offer:$('mktDefaultOffer').value,default_cta_label:$('mktDefaultLabel').value,default_cta_type:$('mktDefaultType').value,default_cta_url:$('mktDefaultUrl').value};
   if(body.enabled&&!state.settings.enabled&&!confirm('AKTIFKAN kalender 365 hari? Konten yang sudah dijadwalkan akan dikirim otomatis ke member Free sesuai tanggal dan jam WIB.'))return;
