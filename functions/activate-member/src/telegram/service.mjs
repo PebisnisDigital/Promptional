@@ -221,8 +221,12 @@ export class Service{
   if(cmd==='/prompt'||cmd==='/start'){
    if(!main||main.$id!==botId)return this.delivery.text(member,bot,'Kamu sudah terdaftar di bot ini. Pengiriman rutin mengikuti bot utama yang dipilih admin.',key,'reply');
    if(member.plan==='premium')return this.delivery.text(member,bot,'PROMPTIONAL Premium kamu sudah aktif. Semua prompt lengkap bisa langsung dibuka di Member Area: https://promptional.vercel.app/member\n\nPremium tidak dikirim harian lewat bot. Gunakan /status untuk melihat masa aktif.',key,'reply');
-   if((fresh||!member.last_sent_at||Date.parse(member.next_send_at)<=this.now())&&member.is_active)return this.delivery.prompt(member,bot,{key:id('period',member.telegram_id,member.plan,member.next_send_at||'first'),welcome:fresh});
-   return this.delivery.text(member,bot,'Selamat datang di PROMPTIONAL! Prompt gratis berikutnya: '+new Date(member.next_send_at).toLocaleString('id-ID',{timeZone:'Asia/Jakarta'})+' WIB. Gunakan /status untuk melihat paket.',key,'reply');
+   if((fresh||!member.last_sent_at||Date.parse(member.next_send_at)<=this.now())&&member.is_active){
+    const result=await this.delivery.prompt(member,bot,{key:id('period',member.telegram_id,member.plan,member.next_send_at||'first'),welcome:fresh});
+    if(result.skipped)return this.delivery.text(member,bot,'Akun Telegram PROMPTIONAL sudah aktif. Belum ada prompt yang dijadwalkan untuk dikirim hari ini. Nantikan kiriman sesuai kalender yang diatur admin.',key,'reply');
+    return result;
+   }
+   return this.delivery.text(member,bot,'Akun Telegram PROMPTIONAL sudah aktif. Prompt gratis dikirim hanya sesuai jadwal admin. Gunakan /status untuk melihat paket.',key,'reply');
   }
   if(cmd==='/beli'||cmd==='/cek'){
    if(!main||main.$id!==botId)return this.delivery.text(member,bot,'Gunakan bot utama untuk informasi Premium.',key,'reply');
@@ -240,7 +244,7 @@ export class Service{
    const autoreply=await this.engagement.respond(member,bot,identity.text,key);
    if(autoreply)return autoreply;
   }
-  return this.delivery.text(member,bot,'Panduan PROMPTIONAL\n/start — terima prompt gratis harian\n/prompt — prompt gratis sesuai jadwal\n/premium — cara mendapatkan Member Area lengkap\n/status — status akun\n/bantuan — panduan\nPrompt gratis dihapus otomatis setelah 24 jam. Member Premium membuka seluruh koleksi langsung di website.'+(this.qris.enabled?'\n/beli — coba checkout QRIS sandbox\n/cek — cek status invoice':''),key,'reply');
+  return this.delivery.text(member,bot,'Panduan PROMPTIONAL\n/start — daftar menerima prompt terjadwal\n/prompt — cek prompt gratis sesuai jadwal\n/premium — cara mendapatkan Member Area lengkap\n/status — status akun\n/bantuan — panduan\nKiriman Free hanya berasal dari kalender admin dan dihapus otomatis setelah 24 jam. Member Premium membuka seluruh koleksi langsung di website.'+(this.qris.enabled?'\n/beli — coba checkout QRIS sandbox\n/cek — cek status invoice':''),key,'reply');
  }
  async scheduler({forceDry=false,budgetMs=20000}={}){
   const start=this.now(),setting=await this.config(),dry=forceDry||setting.dry_run||!this.sendEnabled,bot=await this.main();

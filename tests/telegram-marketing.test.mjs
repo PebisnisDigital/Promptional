@@ -44,14 +44,14 @@ test('global WIB campaign day honors start date and optional loop',()=>{
  assert.equal(campaignDay('2026-10-10',Date.parse('2027-10-09T17:00:00Z')),366);
  assert.equal(campaignDay('2026-10-10',Date.parse('2027-10-09T17:00:00Z'),true),1);
 });
-test('calendar remains in DRAFT with no server gate and cannot arm delivery',async()=>{
+test('all published prompts enter the library, but the calendar starts empty and cannot arm delivery',async()=>{
  const x=setup();const original=await x.marketing.get();
  assert.equal(original.server_gate,false);
- assert.equal(original.stats.filled,365);
+ assert.equal(original.stats.filled,0);
+ assert.equal(original.stats.empty,365);
  assert.equal(original.stats.published,3);
- assert.deepEqual(original.slots.slice(0,3).map(x=>x.prompt_id),['p1','p2','p3']);
- assert(original.slots.every(x=>x.automatic));
- assert.equal(original.slots[3].repeat,true);
+ assert.equal(original.stats.unscheduled,3);
+ assert.deepEqual(original.slots,[]);
  await assert.rejects(()=>x.marketing.saveSettings({enabled:true,start_date:'2026-10-10'},'admin'),/DRAF/);
  const saved=await x.marketing.saveSettings({enabled:false,start_date:'2026-10-10',send_time:'06:00',loop_campaign:true},'admin');
  assert.equal(saved.settings.loop_campaign,true);
@@ -64,6 +64,7 @@ test('calendar saves references only to real published Member Area prompts',asyn
  assert.equal(saved.slot.fingerprint,contentHash(p('p1')));
  assert.equal((await x.marketing.get()).slots[0].day,1);
  assert.equal((await x.marketing.get()).slots[0].cta_label,'BUKA PREMIUM');
+ assert.equal((await x.marketing.get()).stats.unscheduled,2);
  await assert.rejects(()=>x.marketing.save({day:366,source:'scene_prompts',prompt_id:'p2'},'admin'),/Hari/);
  await assert.rejects(()=>x.marketing.save({day:2,source:'scene_prompts',prompt_id:'p1'},'admin'),/sudah ada di hari lain/);
  await assert.rejects(()=>x.marketing.save({day:2,source:'scene_prompts',prompt_id:'missing'},'admin'),/tayang/);
@@ -75,8 +76,8 @@ test('moving a calendar slot swaps atomically and clears source for empty target
  await x.marketing.move(2,10,'admin');
  assert.deepEqual((await x.marketing.get()).slots.map(x=>[x.day,x.prompt_id]),[[1,'p2'],[3,'p3'],[10,'p1']]);
  await x.marketing.remove(3,'admin');
- assert.deepEqual((await x.marketing.get()).slots.slice(0,3).map(x=>x.day),[1,4,5]);
- assert.equal((await x.marketing.get()).slots.find(x=>x.day===4).prompt_id,'p3');
+ assert.deepEqual((await x.marketing.get()).slots.map(x=>x.day),[1,10]);
+ assert.equal((await x.marketing.get()).stats.empty,363);
 });
 test('custom CTA is limited to verified HTTPS site and never Telegram in-chat QRIS',()=>{
  assert.equal(validateUrl('https://promptional.vercel.app/beli-premium.html'),'https://promptional.vercel.app/beli-premium.html');
@@ -87,7 +88,7 @@ test('custom CTA is limited to verified HTTPS site and never Telegram in-chat QR
 test('Free campaign reads live published prompt from Member Area and picks up edits',async()=>{
  const x=setup({gate:true,globalSend:true});
  await x.marketing.saveSettings({enabled:true,start_date:'2026-10-10',send_time:'06:00'},'admin');
- assert.equal((await x.marketing.forFree(NOW)).prompt.$id,'p1');
+ assert.match((await x.marketing.forFree(NOW)).reason,/Belum ada prompt/);
  await x.marketing.save({day:1,source:'scene_prompts',prompt_id:'p1'},'admin');
  let chosen=await x.marketing.forFree(NOW);assert.equal(chosen.prompt.$id,'p1');
  assert.equal(chosen.prompt.marketing_offer.url,'https://promptional.vercel.app/beli-premium.html');
@@ -95,20 +96,34 @@ test('Free campaign reads live published prompt from Member Area and picks up ed
  x.sources.get('p1').prompt_text='changed after scheduling';
  assert.equal((await x.marketing.forFree(NOW)).prompt.prompt_text,'changed after scheduling');
 });
-test('one canonical source grows automatically, drafts and old collections never leak',async()=>{
+test('new published prompts enter library but never schedule themselves or leak drafts',async()=>{
  const x=setup();
  x.sources.get('p2').is_published=false;
  let result=await x.marketing.get();
- assert.deepEqual(result.slots.slice(0,3).map(s=>s.prompt_id),['p1','p3','p1']);
+ assert.deepEqual(result.slots,[]);
+ assert.equal(result.stats.unscheduled,2);
  x.sources.set('p4',{...p('p4'),sort_order:4});
  result=await x.marketing.get();
- assert.deepEqual(result.slots.slice(0,3).map(s=>s.prompt_id),['p1','p3','p4']);
+ assert.deepEqual(result.slots,[]);
  assert.equal(result.library.length,3);
+ assert.equal(result.stats.unscheduled,3);
+ await assert.rejects(()=>x.marketing.previewTestSlot(3),/belum memiliki prompt/);
+ await x.marketing.save({day:3,source:'scene_prompts',prompt_id:'p4'},'admin');
  assert.equal((await x.marketing.previewTestSlot(3)).prompt_id,'p4');
  await assert.rejects(()=>x.marketing.candidates({source:'prompts'}),/Member Area/);
  await assert.rejects(()=>x.marketing.save({day:4,source:'prompts',prompt_id:'p1'},'admin'),/Member Area/);
  await x.marketing.remove(2,'admin');
- assert.deepEqual((await x.marketing.get()).slots.slice(0,3).map(s=>s.day),[1,3,4]);
+ assert.deepEqual((await x.marketing.get()).slots.map(s=>s.day),[3]);
+});
+test('unpublished scheduled prompt is flagged for review instead of being silently replaced',async()=>{
+ const x=setup();await x.marketing.save({day:8,source:'scene_prompts',prompt_id:'p2'},'admin');
+ x.sources.get('p2').is_published=false;
+ const view=await x.marketing.get();
+ assert.equal(view.slots.length,1);
+ assert.equal(view.slots[0].needs_review,true);
+ assert.equal(view.stats.filled,0);
+ assert.equal(view.stats.empty,364);
+ assert.equal(view.stats.unscheduled,2);
 });
 test('backend and Admin both retain a mandatory server-off gate',()=>{
  const m=fs.readFileSync(new URL('../functions/activate-member/src/telegram/runtime.mjs',import.meta.url),'utf8');

@@ -60,6 +60,7 @@ nav.telegram-nav{grid-template-columns:repeat(5,minmax(0,1fr))}
 .mkt-prompt-placeholder{display:grid;place-items:center;width:62px;height:64px;border-radius:7px;background:#f0eef1;color:#726973;font-size:10px;font-weight:800}
 .mkt-prompt strong{font-size:11px;display:block;color:#29232a}
 .mkt-prompt p{font-size:10px;color:#807985;line-height:1.5;margin:3px 0}
+.mkt-prompt-schedule{display:block;width:max-content;max-width:100%;font-size:8px;font-weight:800;letter-spacing:.04em;padding:3px 7px;margin:5px 0 7px;border-radius:99px;color:#9c552e;background:#fff0e8}
 .mkt-prompt .btn{font-size:9px;min-height:28px;padding:4px 9px}
 .mkt-prompt-meta{min-width:0}
 .mkt-prompt-list>.mkt-empty{font-size:12px;padding:20px;color:#888}

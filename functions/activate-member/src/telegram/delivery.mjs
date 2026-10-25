@@ -12,25 +12,19 @@ export class Delivery{
    if(!test&&member.plan==='premium')return {skipped:true,reason:'Akses Premium tersedia di Member Area, bukan kiriman harian.'};
   let prompt=promptId?await s.store.get('scene_prompts',promptId):null;
   if(promptId&&!prompt?.is_published)throw fail('Prompt belum dipublikasikan.');
-  const campaignCfg=!test&&member.plan==='free'&&s.marketingEnabled?await s.marketing.config():null;
+  const campaignCfg=!test&&member.plan==='free'?await s.marketing.config():null;
   const marketingTime=campaignCfg?.enabled?campaignCfg.send_time:setting.premium_time;
-  if(!prompt&&!promptId&&!test&&member.plan==='free'&&campaignCfg?.enabled){
+  if(!prompt&&!promptId&&!test&&member.plan==='free'){
    const planned=await s.marketing.forFree(now);
-   if(planned?.skip){
+   if(planned.skip){
     await s.store.update('telegram_members',member.$id,{next_send_at:nextAt(now,setting.free_days,marketingTime)});
     return {skipped:true,reason:planned.reason,marketing_day:planned.day};
    }
-   if(planned?.prompt)prompt=planned.prompt;
+   prompt=planned.prompt;
   }
-  if(!prompt){
-   const cursor=(await s.store.state(id('cursor',member.telegram_id)))?.data.prompt_id;
-   // One canonical Member Area library, one deterministic order. Newly published
-   // prompts automatically become available on the next daily rotation.
-   const library=await s.marketing.published();
-   const index=library.findIndex(p=>p.$id===cursor);
-   prompt=library.length?library[(index+1)%library.length]:null;
-  }
-  if(!prompt||!prompt.prompt_text)throw fail('Belum ada prompt published yang bisa dikirim.');
+  // No automatic library rotation: only a manually scheduled prompt or an
+  // explicit, authorized tester/retry ID may reach Telegram.
+  if(!prompt||!prompt.prompt_text)throw fail('Belum ada prompt yang dijadwalkan untuk dikirim.');
   if(marketingTestOffer){
    if(!test)throw fail('Pesan penguji tidak boleh dikirim sebagai broadcast.',403);
    if(contentHashMarketing(prompt)!==marketingTestFingerprint)throw fail('Isi prompt pengujian berubah. Review ulang hari ini.',409);

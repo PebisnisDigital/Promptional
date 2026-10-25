@@ -30,17 +30,17 @@
   $('mktDefaultLabel').value=s.default_cta_label||'BUKA PREMIUM';
   $('mktDefaultType').value=s.default_cta_type||'premium';
   $('mktDefaultUrl').value=s.default_cta_url||'';
-  $('mktGate').textContent=state.server_gate?'Izin server aktif. Pengiriman tetap memerlukan konfirmasi jadwal dan pengaturan pada tab KONTEN dan BOT.':'PENGIRIMAN KONTEN BELUM AKTIF: memerlukan izin server terpisah setelah pengujian.';
+  $('mktGate').textContent=state.server_gate?'Izin server aktif. Hanya hari yang Teh jadwalkan manual yang dapat dikirim setelah kampanye diaktifkan.':'JADWAL MASIH DRAF: prompt boleh diseret ke kalender, tetapi pengiriman memerlukan izin server terpisah.';
   $('mktDefaultUrl').disabled=$('mktDefaultType').value!=='url';
  }
  function statistics(){
-  const filled=state.stats.filled, current=state.stats.campaign_day;
+  const filled=state.stats.filled;
   const cards=[
    [state.settings.enabled&&state.server_gate?'AKTIF':'DRAF','Status jadwal'],
-    [filled+'/365','Hari terisi otomatis'],
+    [filled+'/365','Hari terjadwal manual'],
     [state.stats.empty,'Hari kosong'],
-    [state.stats.published??candidates.length,'Prompt tayang di Member Area'],
-   [current>0&&current<=365?current:'—','Hari kampanye']
+    [state.stats.published??candidates.length,'Prompt di perpustakaan'],
+    [state.stats.unscheduled??0,'Belum dijadwalkan']
   ];
   $('mktStats').innerHTML=cards.map(([n,label])=>'<div class="mkt-stat"><b>'+escape(n)+'</b><span>'+escape(label)+'</span></div>').join('');
  }
@@ -57,13 +57,13 @@
    const slot=source.get(day),on=selectedDay===day,empty=!slot;
    html+='<button type="button" class="mkt-day '+(empty?'empty':'')+'" aria-selected="'+on+'" data-mkt-day="'+day+'" '+(slot?'draggable="true"':'')+' aria-label="Hari '+day+', '+escape(slot?slot.title:'kosong')+'">'+
      '<span>HARI</span><strong>'+day+'</strong><small>'+escape(slot?slot.title:dayName(day))+'</small>'+
-     (slot?'<span class="mkt-pill">'+(slot.needs_review?'! PERLU REVIEW':slot.repeat?'↻ ULANGAN':slot.automatic?'● OTOMATIS':'● DIATUR ADMIN')+'</span>':'<small>+ TAMBAH</small>')+'</button>';
+     (slot?'<span class="mkt-pill">'+(slot.needs_review?'! PERLU REVIEW':'● TERJADWAL')+'</span>':'<small>+ TARUH PROMPT</small>')+'</button>';
   }
   $('mktCalendar').innerHTML=html;
   if(selectedDay){
    const slot=source.get(selectedDay);
    $('mktDayDetail').textContent='Hari '+selectedDay+' · '+dayName(selectedDay)+' · '+(slot?'Terisi: '+slot.title:'Belum ada konten.')+(selectedPrompt?' Prompt dipilih: '+selectedPrompt.title:'');
-  }else $('mktDayDetail').textContent='Seret prompt atau pilih prompt lalu klik salah satu hari. Slot yang sudah terisi bisa dipindah untuk mengubah urutan.';
+  }else $('mktDayDetail').textContent='Seret prompt dari perpustakaan ke hari kosong untuk langsung menyimpannya. Di HP, pilih prompt lalu ketuk hari dan simpan.';
   document.querySelectorAll('[data-mkt-day]').forEach(el=>{
    el.addEventListener('click',()=>chooseDay(Number(el.dataset.mktDay)));
    el.addEventListener('dragstart',e=>{
@@ -78,9 +78,9 @@
     e.preventDefault();el.classList.remove('drop-target');
     const payload=e.dataTransfer.getData('text/plain'),target=Number(el.dataset.mktDay);
     if(payload.startsWith('slot:'))return void move(Number(payload.split(':')[1]),target);
-    if(payload.startsWith('prompt:')){
+     if(payload.startsWith('prompt:')){
      const parts=payload.split(':'),prompt=candidates.find(x=>x.source===parts[1]&&x.id===parts[2]);
-     if(prompt){selectedPrompt=prompt;chooseDay(target)}
+     if(prompt)void assignPrompt(target,prompt);
     }
    });
   });
@@ -88,12 +88,14 @@
  function renderCandidates(){
   const q=$('mktSearch').value.trim().toLowerCase();
   const filtered=candidates.filter(p=>[p.title,p.category,p.summary].join(' ').toLowerCase().includes(q));
+  const scheduled=new Map((state?.slots||[]).filter(s=>!s.needs_review).map(s=>[s.prompt_id,s.day]));
   $('mktPromptList').innerHTML=filtered.length?filtered.map(p=>{
    const yes=selectedPrompt?.id===p.id&&selectedPrompt?.source===p.source;
+   const day=scheduled.get(p.id);
    return '<div class="mkt-prompt" draggable="true" data-mkt-prompt="'+escape(p.source+':'+p.id)+'" data-selected="'+yes+'">'+
      (p.preview_url?'<img src="'+escape(p.preview_url)+'" alt="" loading="lazy" referrerpolicy="no-referrer">':'<span class="mkt-prompt-placeholder">TEKS</span>')+
-    '<div class="mkt-prompt-meta"><strong>'+escape(p.title)+'</strong><p>'+escape(p.category||'Prompt visual')+'</p><button type="button" class="btn dark" data-mkt-pick="'+escape(p.source+':'+p.id)+'">'+(yes?'DIPILIH ✓':'PILIH PROMPT')+'</button></div></div>';
-  }).join(''):'<p class="mkt-empty">Tidak ada prompt yang cocok di data yang sudah dimuat. Coba MUAT PROMPT BERIKUTNYA.</p>';
+    '<div class="mkt-prompt-meta"><strong>'+escape(p.title)+'</strong><p>'+escape(p.category||'Prompt visual')+'</p><small class="mkt-prompt-schedule">'+(day?'TERJADWAL HARI '+day:'BELUM DIJADWALKAN')+'</small><button type="button" class="btn dark" data-mkt-pick="'+escape(p.source+':'+p.id)+'">'+(yes?'DIPILIH ✓':'PILIH PROMPT')+'</button></div></div>';
+  }).join(''):'<p class="mkt-empty">Tidak ada prompt terbit yang cocok. Coba kata pencarian lain.</p>';
   $('mktLoadMore').hidden=true;
   document.querySelectorAll('[data-mkt-prompt]').forEach(el=>el.addEventListener('dragstart',e=>{
    e.dataTransfer.effectAllowed='copy';e.dataTransfer.setData('text/plain','prompt:'+el.dataset.mktPrompt);
@@ -129,6 +131,19 @@
   refreshMock();
   $('mktEditor').scrollIntoView({behavior:'smooth',block:'nearest'});
  }
+ async function assignPrompt(day,prompt){
+  const previous=slots().get(day);
+  if(previous&&previous.prompt_id!==prompt.id&&!confirm('Ganti prompt yang sudah dijadwalkan untuk hari '+day+'?'))return;
+  await act(async()=>{
+   await request('marketing-slot-save',{day,source:prompt.source,prompt_id:prompt.id,
+    offer_text:state.settings.default_offer,cta_label:state.settings.default_cta_label,
+    cta_type:state.settings.default_cta_type,cta_url:state.settings.default_cta_url});
+   state=await request('marketing-get');selectedPrompt=null;selectedDay=day;editing=null;
+   $('mktEditor').hidden=true;$('mktSelection').textContent='Belum memilih prompt';
+   statistics();renderCalendar();renderCandidates();
+   notice(prompt.title+' berhasil dijadwalkan untuk hari '+day+'. Klik harinya jika ingin mengubah upselling.','success');
+  });
+ }
  function refreshMock(){
   $('mktMockContent').textContent='🖼 '+(editing?.title||'PROMPT')+'\n\nIsi prompt lengkap yang dipilih dari Member Area akan dikirim terlebih dahulu.';
   $('mktMockOffer').textContent=$('mktEditOffer').value+'\n\nPesan gratis dihapus setelah '+Number($('tgDeleteHours')?.value||24)+' jam (sesuai pengaturan KONTEN).';
@@ -141,7 +156,7 @@
    await request('marketing-slot-move',{from,to});
    const updated=await request('marketing-get');state=updated;
    selectedDay=to;selectedPrompt=null;
-   statistics();renderCalendar();notice('Konten dari hari '+from+' berhasil '+(slots().has(from)?'ditukar':'dipindahkan')+' ke hari '+to+'.','success');
+   statistics();renderCalendar();renderCandidates();notice('Konten dari hari '+from+' berhasil '+(slots().has(from)?'ditukar':'dipindahkan')+' ke hari '+to+'.','success');
   });
  }
 
@@ -178,7 +193,7 @@
   settingsForm();statistics();renderCalendar();
   await loadTesters();
    loadCandidates();loaded=true;
-   notice('Sinkron: '+state.stats.published+' prompt tayang tersedia di Member Area dan antrean Telegram. '+state.stats.filled+' hari siap, jadwal '+(state.settings.enabled&&state.server_gate?'aktif':'masih draf')+'.','success');
+   notice('Perpustakaan sinkron: '+state.stats.published+' prompt tayang. '+state.stats.filled+' hari dijadwalkan manual; hari kosong tidak mengirim. Status '+(state.settings.enabled&&state.server_gate?'aktif':'draf')+'.','success');
  }
  $('mktPage').addEventListener('change',e=>{page=Number(e.target.value);renderCalendar()});
  $('mktPrev').addEventListener('click',()=>{page=Math.max(0,page-1);renderCalendar()});

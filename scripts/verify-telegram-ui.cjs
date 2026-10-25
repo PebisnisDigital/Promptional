@@ -32,10 +32,7 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
  await landing.close();console.log('Landing page PASS: Premium registration uses one embedded checkout.');
  // Marketing calendar: isolated browser simulation, no real messages or DB mutations.
  for(const width of [1280,390]){
-  const page=await browser.newPage({viewport:{width,height:1000}}),pageErrors=[],calls=[],slots=new Map([
-   [1,{day:1,source:'scene_prompts',prompt_id:'p1',title:'BP001 • Foto Editorial',automatic:true,offer_text:'Suka prompt ini? Buka semua prompt Premium Rp199.000.',cta_label:'BUKA PREMIUM',cta_type:'premium'}],
-   [2,{day:2,source:'scene_prompts',prompt_id:'p2',title:'BP002 • Poster Produk',automatic:true,offer_text:'Suka prompt ini? Buka semua prompt Premium Rp199.000.',cta_label:'BUKA PREMIUM',cta_type:'premium'}]
-  ]);
+  const page=await browser.newPage({viewport:{width,height:1000}}),pageErrors=[],calls=[],slots=new Map();
   page.on('pageerror',e=>pageErrors.push(e.message));page.on('dialog',dialog=>dialog.accept());await local(page);
   await page.route('**/assets/vendor/appwrite-28.1.0.js',r=>r.fulfill({body:fixture,contentType:'application/javascript'}));
   let marketingSettings={enabled:false,loop_campaign:false,start_date:'2026-10-10',send_time:'06:00',timezone:'Asia/Jakarta',
@@ -49,7 +46,7 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
    let reply={ok:true};
    if(body.action==='overview')reply={ok:true,bots:[],settings:{main_bot_id:'test-main-bot',enabled:false,paused:true,dry_run:true,premium_time:'06:00',free_days:1,premium_days:1,delete_hours:24,term_days:365,batch_size:5},stats:{},errors:[],members:[],prompts:[],send_enabled:false,testers:[{bot_id:'test-main-bot',telegram_id:'778812345'}]};
    if(body.action==='marketing-test-send')reply={ok:true,status:'sent',test:true,day:body.day,delivery_id:'test_delivery'};
-   if(body.action==='marketing-get')reply={ok:true,settings:marketingSettings,slots:[...slots.values()],library,stats:{filled:slots.size,empty:365-slots.size,target:365,published:library.length,active:false,campaign_day:1},server_gate:false};
+   if(body.action==='marketing-get')reply={ok:true,settings:marketingSettings,slots:[...slots.values()],library,stats:{filled:slots.size,empty:365-slots.size,target:365,published:library.length,unscheduled:library.length-slots.size,active:false,campaign_day:1},server_gate:false};
    if(body.action==='marketing-slot-save'){const item={...body,title:body.prompt_id==='p1'?'BP001 • Foto Editorial':'BP002 • Poster Produk'};slots.set(body.day,item);reply={ok:true,slot:item}}
    if(body.action==='marketing-slot-delete')slots.delete(body.day);
    if(body.action==='marketing-slot-move'){
@@ -65,7 +62,8 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   await page.locator('[data-view="marketing"]').click();
   await page.locator('[data-tg-tab="content"]').click();
   await page.locator('#mktPromptList .mkt-prompt').first().waitFor();
-  assert.match(await page.locator('#mktStats').innerText(),/2\/365/);
+  assert.match(await page.locator('#mktStats').innerText(),/0\/365/);
+  assert.match(await page.locator('#mktPromptList').innerText(),/BELUM DIJADWALKAN/);
   assert.equal(await page.locator('#mktEnabled option[value="true"]').evaluate(el=>el.disabled),true);
   await page.locator('[data-mkt-pick="scene_prompts:p1"]').click();
   await page.locator('[data-mkt-day="1"]').click();
@@ -76,6 +74,9 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   assert.match(await page.locator('[data-mkt-day="1"]').innerText(),/Foto Editorial/);
   assert.equal(slots.get(1).cta_label,'UPGRADE SEKARANG');
   if(width===1280){
+   await page.locator('[data-mkt-prompt="scene_prompts:p2"]').dragTo(page.locator('[data-mkt-day="3"]'));
+   await page.waitForFunction(()=>document.getElementById('mktNotice').textContent.includes('berhasil dijadwalkan'));
+   assert.equal(slots.get(3).prompt_id,'p2');
    await page.locator('[data-mkt-day="1"]').dragTo(page.locator('[data-mkt-day="2"]'));
    await page.waitForFunction(()=>/dipindahkan|ditukar/.test(document.getElementById('mktNotice').textContent));
    assert.match(await page.locator('[data-mkt-day="2"]').innerText(),/Foto Editorial/);
