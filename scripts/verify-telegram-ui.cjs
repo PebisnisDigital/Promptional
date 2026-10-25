@@ -77,7 +77,7 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   assert.equal(slots.get(1).cta_label,'UPGRADE SEKARANG');
   if(width===1280){
    await page.locator('[data-mkt-day="1"]').dragTo(page.locator('[data-mkt-day="2"]'));
-   await page.waitForFunction(()=>document.getElementById('mktNotice').textContent.includes('dipindahkan'));
+   await page.waitForFunction(()=>/dipindahkan|ditukar/.test(document.getElementById('mktNotice').textContent));
    assert.match(await page.locator('[data-mkt-day="2"]').innerText(),/Foto Editorial/);
    assert.equal(slots.get(2).prompt_id,'p1');
   }
