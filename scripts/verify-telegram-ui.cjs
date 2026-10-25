@@ -48,7 +48,7 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
    if(body.action==='overview')reply={ok:true,bots:[],settings:{main_bot_id:'test-main-bot',enabled:false,paused:true,dry_run:true,premium_time:'06:00',free_days:1,premium_days:1,delete_hours:24,term_days:365,batch_size:5},stats:{},errors:[],members:[],prompts:[],send_enabled:false,testers:[{bot_id:'test-main-bot',telegram_id:'778812345'}]};
    if(body.action==='marketing-test-send')reply={ok:true,status:'sent',test:true,day:body.day,delivery_id:'test_delivery'};
    if(body.action==='marketing-preview'){
-    const chosen=library.find(p=>p.id===body.prompt_id),sample='Isi prompt LENGKAP untuk '+(chosen?.title||'prompt')+' <produk> & AI.';
+    const chosen=library.find(p=>p.id===body.prompt_id),sample='Isi prompt LENGKAP untuk '+(chosen?.title||'prompt')+' <produk> & AI. '+('Detail visual, komposisi, pencahayaan, ekspresi, dan latar. '.repeat(28));
     reply={ok:true,prompt:{id:chosen.id,title:chosen.title,preview_url:chosen.preview_url,caption:chosen.title,fallback_title:chosen.title,chunks:['<pre>'+sample.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre>'],length:sample.length}};
    }
    if(body.action==='marketing-get')reply={ok:true,settings:marketingSettings,slots:[...slots.values()],library,stats:{filled:slots.size,empty:365-slots.size,target:365,published:library.length,unscheduled:library.length-slots.size,active:false,campaign_day:1},server_gate:false};
@@ -81,6 +81,14 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   assert.match(await page.locator('#mktPreviewMessages').innerText(),/Coba prompt ini/);
   assert.equal(await page.locator('#mktPreviewMessages .mkt-tg-button').innerText(),'UPGRADE SEKARANG ↗');
   assert.equal(await page.locator('#mktPreviewMessages .mkt-tg-button').getAttribute('href'),'https://promptional.vercel.app/beli-premium.html');
+  await page.waitForFunction(()=>{const list=document.getElementById('mktPreviewMessages'),cta=list.querySelector('.mkt-tg-button');return cta&&cta.getBoundingClientRect().bottom<=list.getBoundingClientRect().bottom+1});
+  assert.equal(await page.locator('#mktPreviewCta').getAttribute('aria-pressed'),'true','Tombol CTA menjadi tampilan awal preview');
+  await page.locator('#mktPreviewStart').click();
+  assert.equal(await page.locator('#mktPreviewMessages').evaluate(el=>el.scrollTop),0);
+  await page.locator('#mktPreviewCta').click();
+  await page.waitForFunction(()=>document.getElementById('mktPreviewMessages').scrollTop>0);
+  assert.equal(await page.locator('#mktPreviewCta').getAttribute('aria-pressed'),'true');
+  await page.locator('.mkt-preview-review').screenshot({path:path.join(output,'marketing-cta-preview-'+width+'.png')});
   await page.locator('#mktEditForm button[type="submit"]').click();
   await page.waitForFunction(()=>document.getElementById('mktNotice').textContent.includes('disimpan'));
   await page.locator('#mktPreviewChecks').getByText('Konten sesuai jadwal tersimpan').waitFor();

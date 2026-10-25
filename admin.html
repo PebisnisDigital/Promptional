@@ -51,7 +51,7 @@ main{padding:16px}.view{display:none}.view.on{display:block}.title{display:flex;
 
 <link rel="stylesheet" href="/assets/admin-ui.css?v=promptional-1">
 <link rel="stylesheet" href="/assets/telegram-manager.css">
-<link rel="stylesheet" href="/assets/admin-marketing.css?v=telegram-preview-1">
+<link rel="stylesheet" href="/assets/admin-marketing.css?v=telegram-cta-2">
 <link rel="stylesheet" href="/assets/admin-telegram-tabs.css?v=2">
 <style>/* PROMPTIONAL identity */ .brand{letter-spacing:-.05em}.brand b{color:#ff6b35}</style>
 </head>
@@ -368,6 +368,10 @@ main{padding:16px}.view{display:none}.view.on{display:block}.title{display:flex;
           <div class="mkt-phone" aria-label="Simulasi percakapan Telegram">
             <div class="mkt-phone-top"><span class="mkt-phone-back">‹</span><span class="mkt-phone-avatar">P</span><div><strong>PROMPTIONAL BOT</strong><small>bot • simulasi penerimaan</small></div><span class="mkt-phone-menu">⋮</span></div>
             <div class="mkt-phone-date" id="mktPreviewDate">Hari pilihan</div>
+            <div class="mkt-phone-jump" role="group" aria-label="Navigasi isi preview Telegram">
+              <button type="button" id="mktPreviewStart" aria-controls="mktPreviewMessages" aria-pressed="false">↑ GAMBAR & PROMPT</button>
+              <button type="button" id="mktPreviewCta" aria-controls="mktPreviewMessages" aria-pressed="true">↓ TOMBOL UPSELLING</button>
+            </div>
             <div class="mkt-phone-messages" id="mktPreviewMessages" aria-live="polite"><p>Memuat isi prompt lengkap…</p></div>
             <div class="mkt-phone-input"><span>⌑</span><span>Message</span><span>➤</span></div>
           </div>
@@ -1097,7 +1101,7 @@ boot();
 
 <script src="/assets/telegram-manager.js?v=2"></script>
 
-<script src="/assets/admin-marketing.js?v=telegram-preview-1"></script>
+<script src="/assets/admin-marketing.js?v=telegram-cta-2"></script>
 <script src="/assets/admin-telegram-tabs.js?v=telegram-preview-1"></script>
 <script src="/assets/workspace-ui.js?v=2"></script>
 </body>
