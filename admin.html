@@ -333,13 +333,13 @@ main{padding:16px}.view{display:none}.view.on{display:block}.title{display:flex;
     <div class="tg-actions"><button class="btn pink" type="submit">SIMPAN PENGATURAN</button><button class="btn dark" id="tgPause" type="button">PAUSE</button><button class="btn dark" id="tgResume" type="button">RESUME</button><button class="btn dark" id="tgDryTest" type="button">UJI SCHEDULER TANPA KIRIM</button></div>
    </form><p id="tgAutomationState">Status belum dimuat.</p>
   </section>
-      <div class="title tg-content-title"><div><div class="eyebrow">TELEGRAM → KONTEN</div><h2>Konten & Kalender 365 Hari</h2><p>Pilih prompt, atur jadwal, edit upselling dan format pesan Telegram, serta uji kirim ke akun penguji.</p></div><button class="btn dark" id="mktRefresh" type="button">SEGARKAN</button></div>
+      <div class="title tg-content-title"><div><div class="eyebrow">TELEGRAM → KONTEN</div><h2>Konten & Kalender 365 Hari</h2><p>Otomatis memakai prompt tayang yang sama dengan Member Area. Atur urutan atau upselling hanya bila perlu.</p></div><button class="btn dark" id="mktRefresh" type="button">SEGARKAN</button></div>
   <div class="mkt-notice" id="mktNotice" role="status">Memuat kalender…</div>
   <div class="mkt-stats" id="mktStats" aria-label="Ringkasan kalender"></div>
-  <div class="mkt-content-heading"><div><span class="eyebrow">1 · KELOLA KONTEN</span><h2>Susun Pesan untuk Bot Telegram</h2><p>Pilih prompt, masukkan ke hari pengiriman, dan edit pesan serta tombolnya di kalender.</p></div></div>
+  <div class="mkt-content-heading"><div><span class="eyebrow">1 · SATU SUMBER PROMPT</span><h2>Otomatis dari Member Area</h2><p>Prompt yang baru diterbitkan otomatis masuk ke antrean harian. Draf tidak dikirim. Tidak perlu input prompt dua kali.</p></div></div>
   <div class="mkt-workspace">
     <section class="mkt-calendar-panel" aria-labelledby="mktCalendarTitle">
-      <div class="mkt-panel-header"><div><span class="eyebrow">RENCANA DISTRIBUSI</span><h2 id="mktCalendarTitle">Susunan 365 Hari</h2><p>Pindahkan kartu antarslot. Di HP, pilih prompt lalu ketuk harinya.</p></div><span id="mktSelection" class="mkt-selection">Belum memilih prompt</span></div>
+      <div class="mkt-panel-header"><div><span class="eyebrow">RENCANA DISTRIBUSI</span><h2 id="mktCalendarTitle">Susunan 365 Hari</h2><p>Terisi otomatis sesuai urutan BP. Pindahkan slot atau ubah CTA jika ingin penyesuaian.</p></div><span id="mktSelection" class="mkt-selection">Belum memilih prompt</span></div>
       <div class="mkt-calendar-toolbar">
         <button type="button" class="btn dark sm" id="mktPrev" aria-label="30 hari sebelumnya">‹</button>
         <select id="mktPage" aria-label="Bagian kalender"></select>
@@ -350,11 +350,11 @@ main{padding:16px}.view{display:none}.view.on{display:block}.title{display:flex;
       <div class="mkt-day-detail" id="mktDayDetail" role="status">Pilih hari untuk mengatur prompt.</div>
     </section>
     <section class="mkt-library-panel" aria-labelledby="mktLibraryTitle">
-      <div class="mkt-panel-header"><div><span class="eyebrow">SUMBER MEMBER AREA</span><h2 id="mktLibraryTitle">Perpustakaan Prompt</h2><p>Hanya prompt tayang dengan preview yang dapat dijadwalkan.</p></div></div>
-      <div class="mkt-library-search"><select id="mktSource"><option value="scene_prompts">Prompt Viral / Visual</option><option value="prompts">Seluruh Koleksi Prompt</option></select><input type="search" id="mktSearch" placeholder="Cari di prompt yang sudah dimuat…" aria-label="Cari prompt"></div>
+      <div class="mkt-panel-header"><div><span class="eyebrow">SUMBER MEMBER AREA</span><h2 id="mktLibraryTitle">Perpustakaan Prompt</h2><p>Satu sumber: semua prompt tayang. Gambar dikirim bila tersedia; teks prompt selalu mengikuti data Member Area.</p></div></div>
+      <div class="mkt-library-search"><input type="search" id="mktSearch" placeholder="Cari semua prompt tayang…" aria-label="Cari prompt"></div>
       <div class="mkt-prompt-list" id="mktPromptList"></div>
-      <button type="button" class="btn dark mkt-load-more" id="mktLoadMore">MUAT PROMPT BERIKUTNYA</button>
-      <p class="mkt-footnote">Geser kartu ke kalender (desktop) atau ketuk PILIH lalu pilih hari (HP). Klik MUAT PROMPT BERIKUTNYA untuk mencari dari seluruh koleksi.</p>
+      <button type="button" class="btn dark mkt-load-more" id="mktLoadMore" hidden aria-hidden="true">MUAT PROMPT BERIKUTNYA</button>
+      <p class="mkt-footnote">Semua prompt tayang langsung termuat. Geser kartu (desktop) atau ketuk PILIH lalu tentukan hari (HP) hanya jika ingin mengganti urutan otomatis.</p>
     </section>
   </div>
   <section class="mkt-editor" id="mktEditor" aria-labelledby="mktEditorTitle" hidden>
@@ -367,7 +367,7 @@ main{padding:16px}.view{display:none}.view.on{display:block}.title{display:flex;
        <label>AKSI TOMBOL<select id="mktEditType"><option value="premium">Beli / Upgrade Premium</option><option value="member">Masuk Member Area</option><option value="url">URL PROMPTIONAL</option></select></label>
        <label>URL TUJUAN<input id="mktEditUrl" type="url" placeholder="https://promptional.vercel.app/"></label>
       </div>
-      <div class="mkt-actions"><button type="submit" class="btn pink">SIMPAN KONTEN HARI INI</button><button type="button" id="mktDeleteSlot" class="btn dark">KOSONGKAN HARI</button></div>
+      <div class="mkt-actions"><button type="submit" class="btn pink">SIMPAN PENGATURAN HARI</button><button type="button" id="mktDeleteSlot" class="btn dark">LEWATI HARI INI</button></div>
       <div class="mkt-mock-chat"><b>PREVIEW CHAT TELEGRAM</b><p id="mktMockContent"></p><p id="mktMockOffer"></p><span id="mktMockButton" class="mkt-mock-cta">BUKA PREMIUM →</span><small>Simulasi teks saja; tidak mengirim pesan.</small></div>
     </form>
   </section>
@@ -382,7 +382,7 @@ main{padding:16px}.view{display:none}.view.on{display:block}.title{display:flex;
         <label>MODE PENGIRIMAN<select id="mktEnabled"><option value="false">DRAF — Tidak mengirim</option><option value="true">AKTIF — Memerlukan izin server</option></select></label>
       </div>
       <label class="mkt-loop"><input id="mktLoop" type="checkbox"> Ulangi kalender mulai Hari 1 setelah Hari 365</label>
-      <p class="mkt-footnote">Hari 1 mengikuti tanggal mulai di WIB. Kalender berjalan global selama 365 hari. Waktu dan interval pengiriman bot diatur melalui tab KONTEN. Hanya hari yang memiliki konten yang akan diproses; hari kosong dilewati. Penghapusan pesan Free mengikuti pengaturan Telegram.</p>
+      <p class="mkt-footnote">Hari 1 mengikuti tanggal mulai WIB. Konten diambil langsung dari prompt yang tayang di Member Area; hari tanpa prompt dilewati. Pesan Free dijadwalkan dihapus 24 jam setelah dikirim (atau sesuai durasi di atas). Mengubah data tidak otomatis memulai pengiriman.</p>
       <div class="mkt-subhead">TEMPLATE UPSELLING DEFAULT</div>
       <textarea id="mktDefaultOffer" rows="3" maxlength="850" placeholder="Pesan upselling setelah prompt terkirim…" required></textarea>
       <div class="mkt-fields mkt-fields-three"><label>TEKS TOMBOL CTA<input id="mktDefaultLabel" maxlength="40" required></label><label>TUJUAN CTA<select id="mktDefaultType"><option value="premium">Penawaran Premium</option><option value="member">Member Area</option><option value="url">Link PROMPTIONAL</option></select></label><label>LINK (OPSIONAL)<input id="mktDefaultUrl" type="url" placeholder="https://promptional.vercel.app/"></label></div>
