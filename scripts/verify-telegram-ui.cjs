@@ -63,7 +63,7 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   await page.locator('[data-tg-tab="content"]').click();
   await page.locator('#mktPromptList .mkt-prompt').first().waitFor();
   assert.match(await page.locator('#mktStats').innerText(),/0\/365/);
-  assert.match(await page.locator('#mktPromptList').innerText(),/BELUM DIJADWALKAN/);
+  assert.match(await page.locator('#mktPromptList').innerText(),/SIAP DIJADWALKAN/);
   assert.equal(await page.locator('#mktEnabled option[value="true"]').evaluate(el=>el.disabled),true);
   await page.locator('[data-mkt-pick="scene_prompts:p1"]').click();
   await page.locator('[data-mkt-day="1"]').click();
@@ -76,7 +76,7 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   assert.equal(await page.locator('#mktPromptList .mkt-prompt').count(),1);
   assert.equal(await page.locator('[data-mkt-prompt="scene_prompts:p1"]').count(),0);
   assert.match(await page.locator('#mktLibraryCount').innerText(),/1 tersedia · 1 dijadwalkan/);
-  assert.match(await page.locator('#mktStats').innerText(),/1\nTersisa di perpustakaan/);
+  assert.equal(await page.locator('#mktStats .mkt-stat').nth(3).locator('b').innerText(),'1');
   if(width===1280){
    await page.locator('[data-mkt-prompt="scene_prompts:p2"]').dragTo(page.locator('[data-mkt-day="3"]'));
    await page.waitForFunction(()=>document.getElementById('mktNotice').textContent.includes('berpindah ke hari 3'));
