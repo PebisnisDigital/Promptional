@@ -1,6 +1,6 @@
 import {id,safeError,fail} from './security.mjs';
 import {DAY,nextAt,promptChunks} from './policy.mjs';
-import {contentHash as contentHashMarketing} from './marketing.mjs';
+import {contentHash as contentHashMarketing,previewImages} from './marketing.mjs';
 import {telegramHtml} from './engagement.mjs';
 export class Delivery{
  constructor(service){this.s=service}
@@ -60,11 +60,34 @@ export class Delivery{
   await s.store.update('telegram_deliveries',rowId,{dispatch_status:'sending',attempts:(row.attempts||0)+1});
   const token=s.token(bot);let warning=null;
   try{
-   const image=String(prompt.preview_url||'');
-   if(image&&/^https:\/\//.test(image)){
-    try{const photo=await s.telegram.call(token,'sendPhoto',{chat_id:consent.data.chat_id,photo:image,caption:((welcome?'Selamat datang di PROMPTIONAL! Prompt gratis ini akan dihapus otomatis.\n\n':'')+String(prompt.title||'Prompt PROMPTIONAL')).slice(0,900)});ids.push(String(photo.message_id));await s.store.update('telegram_deliveries',rowId,{message_id:ids[0],message_ids:JSON.stringify(ids)})}
-    catch(e){if(e.ambiguous||e.blocked||e.retryAfter)throw e;warning='Preview tidak dapat dikirim.'}
-   }
+   const images=previewImages(prompt);
+   const caption=((welcome?'Selamat datang di PROMPTIONAL! Prompt gratis ini akan dihapus otomatis.\n\n':'')+String(prompt.title||'Prompt PROMPTIONAL')).slice(0,900);
+   const remember=async()=>s.store.update('telegram_deliveries',rowId,{message_id:ids[0],message_ids:JSON.stringify(ids)});
+   const sendSingle=async image=>{
+    try{
+     const photo=await s.telegram.call(token,'sendPhoto',{chat_id:consent.data.chat_id,photo:image,...(!ids.length?{caption}:{})});
+     ids.push(String(photo.message_id));await remember();
+    }catch(e){if(e.ambiguous||e.blocked||e.retryAfter)throw e;warning='Sebagian gambar preview tidak dapat dikirim.'}
+   };
+   if(images.length>1){
+    try{
+     const album=await s.telegram.call(token,'sendMediaGroup',{
+      chat_id:consent.data.chat_id,
+      media:images.map((image,index)=>({type:'photo',media:image,...(index===0?{caption}:{})}))
+     });
+     if(!Array.isArray(album)||album.length!==images.length||!album.every(message=>Number.isSafeInteger(message?.message_id))){
+      if(Array.isArray(album))ids.push(...album.filter(message=>Number.isSafeInteger(message?.message_id)).map(message=>String(message.message_id)));
+      throw Object.assign(fail('Telegram tidak mengonfirmasi semua foto album.',502),{ambiguous:true});
+     }
+     ids.push(...album.map(message=>String(message.message_id)));await remember();
+    }catch(e){
+     // Only a definitive Telegram rejection permits fallback. A timeout or an
+     // uncertain response might already have sent the whole album: never resend.
+     if(e.ambiguous||e.blocked||e.retryAfter||ids.length)throw e;
+     warning='Album tidak dapat dikirim bersama; mencoba gambar satu per satu.';
+     for(const image of images)await sendSingle(image);
+    }
+   }else if(images.length===1)await sendSingle(images[0]);
    if(!ids.length){const intro=await s.telegram.call(token,'sendMessage',{chat_id:consent.data.chat_id,text:(welcome?'Selamat datang di PROMPTIONAL!\n\n':'')+String(prompt.title||'Prompt PROMPTIONAL').slice(0,200)});ids.push(String(intro.message_id));await s.store.update('telegram_deliveries',rowId,{message_id:ids[0],message_ids:JSON.stringify(ids)})}
    const chunks=promptChunks(prompt.prompt_text);
    for(const [index,text] of chunks.entries()){
@@ -107,7 +130,17 @@ export class Delivery{
   if(row.dispatch_status==='deleted')return {ok:true,already_deleted:true};
   if(!JSON.parse(row.message_ids||'[]').length)throw fail('Pesan belum memiliki Message ID yang dapat dihapus.');
   const s=this.s,bot=await s.store.get('telegram_bots',row.bot_id);if(!bot)return {ok:false,error:'Konfigurasi bot tidak ditemukan.'};
-  const remaining=[],errors=[];for(const message_id of JSON.parse(row.message_ids||'[]'))try{await s.telegram.call(s.token(bot),'deleteMessage',{chat_id:row.chat_id,message_id:Number(message_id)})}catch(e){if(!e.alreadyDeleted){remaining.push(message_id);errors.push(safeError(e))}}
+  const messageIds=JSON.parse(row.message_ids||'[]');
+  // Albums have up to four photo IDs in addition to text and CTA. Delete them
+  // in one Telegram operation to avoid six sequential API calls per member.
+  if(messageIds.length>3&&messageIds.length<=100){
+   try{
+    await s.telegram.call(s.token(bot),'deleteMessages',{chat_id:row.chat_id,message_ids:messageIds.map(Number)});
+    await s.store.update('telegram_deliveries',row.$id,{dispatch_status:'deleted',status:'deleted',deleted_at:new Date(s.now()).toISOString(),message_ids:'[]',delete_at:null});
+    return {ok:true};
+   }catch{/* Fallback checks each message; already-deleted IDs are treated as removed. */}
+  }
+  const remaining=[],errors=[];for(const message_id of messageIds)try{await s.telegram.call(s.token(bot),'deleteMessage',{chat_id:row.chat_id,message_id:Number(message_id)})}catch(e){if(!e.alreadyDeleted){remaining.push(message_id);errors.push(safeError(e))}}
   if(!remaining.length){await s.store.update('telegram_deliveries',row.$id,{dispatch_status:'deleted',status:'deleted',deleted_at:new Date(s.now()).toISOString(),message_ids:'[]',delete_at:null});return {ok:true}}
   const expired=s.now()-Date.parse(row.sent_at)>47*3600000;
   await s.store.update('telegram_deliveries',row.$id,{delete_at:expired?null:row.delete_at,dispatch_status:'delete_failed',status:'delete_failed',message_ids:JSON.stringify(remaining),error_code:errors.at(-1)||'Telegram menolak penghapusan.',retry_at:expired?null:new Date(s.now()+15*60000).toISOString()});return {ok:false,error:expired?'Batas penghapusan Telegram terlewati.':'Sebagian pesan belum dapat dihapus; akan dicoba ulang.'};

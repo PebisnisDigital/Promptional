@@ -10,6 +10,21 @@ import {DAY, jakartaDay, promptChunks} from './policy.mjs';
 // This is the same table read by member.html and edited by the admin prompt library.
 // The old `prompts` collection contains text-only UMKM templates, not member gallery items.
 export const PROMPT_LIBRARY='scene_prompts';
+// Keep the Telegram image order identical to Member Area's previewSources().
+// Older prompts may use Appwrite file IDs instead of direct HTTPS URLs.
+export function previewImages(prompt){
+ const images=[];
+ for(let slot=1;slot<=4;slot++){
+  const suffix=slot===1?'':'_'+slot;
+  const fileId=String(prompt?.['preview_file_id'+suffix]||'').trim();
+  const raw=fileId
+   ?'https://sgp.cloud.appwrite.io/v1/storage/buckets/prompt-previews/files/'+encodeURIComponent(fileId)+'/view?project=badai-prompt-umkm'
+   :String(prompt?.['preview_url'+suffix]||'').trim();
+  if(!raw||images.includes(raw))continue;
+  try{const url=new URL(raw);if(url.protocol==='https:'&&!url.username&&!url.password)images.push(raw)}catch{/* Ignore malformed image links, preserve the prompt text. */}
+ }
+ return images;
+}
 const CTA_TYPES=new Set(['premium','member','url']);
 const BASE='https://promptional.vercel.app';
 const DEFAULT_OFFER='Suka prompt gratis hari ini? Buka seluruh koleksi PROMPTIONAL langsung di Member Area Premium. Bayar sekali melalui QRIS di website resmi, tanpa menunggu kiriman prompt Premium harian.';
@@ -89,7 +104,7 @@ export class Marketing{
    if(!Number.isInteger(day)||day<1||day>365)continue;
    if(!prompt){slots.push({...saved,day,automatic:false,needs_review:true});continue;}
    slots.push({day,source:PROMPT_LIBRARY,prompt_id:prompt.$id,title:prompt.title,
-    category:prompt.category||'',preview_url:prompt.preview_url,
+    category:prompt.category||'',preview_url:previewImages(prompt)[0]||'',
     offer_text:saved.offer_text??settings.default_offer,
     cta_label:saved.cta_label??settings.default_cta_label,
     cta_type:saved.cta_type??settings.default_cta_type,
@@ -101,12 +116,12 @@ export class Marketing{
  }
  async get(){
   const {settings,slots,library}=await this.calendar();
-  return {ok:true,settings,slots,library:library.map(p=>({source:PROMPT_LIBRARY,id:p.$id,title:p.title,category:p.category||'',preview_url:p.preview_url,summary:trim(p.prompt_text,145)})),stats:{filled:slots.filter(s=>!s.needs_review).length,empty:365-slots.length,target:365,published:library.length,scheduled:slots.length,unscheduled:library.length-new Set(slots.filter(s=>!s.needs_review).map(s=>s.prompt_id)).size,active:settings.enabled&&this.s.sendEnabled,campaign_day:campaignDay(settings.start_date,this.s.now(),settings.loop_campaign)},server_gate:Boolean(this.s.sendEnabled),note:'Hanya kalender Konten yang mengendalikan kiriman rutin. Perpustakaan tetap sinkron dengan Member Area. Hari kosong tidak mengirim.'};
+  return {ok:true,settings,slots,library:library.map(p=>({source:PROMPT_LIBRARY,id:p.$id,title:p.title,category:p.category||'',preview_url:previewImages(p)[0]||'',summary:trim(p.prompt_text,145)})),stats:{filled:slots.filter(s=>!s.needs_review).length,empty:365-slots.length,target:365,published:library.length,scheduled:slots.length,unscheduled:library.length-new Set(slots.filter(s=>!s.needs_review).map(s=>s.prompt_id)).size,active:settings.enabled&&this.s.sendEnabled,campaign_day:campaignDay(settings.start_date,this.s.now(),settings.loop_campaign)},server_gate:Boolean(this.s.sendEnabled),note:'Hanya kalender Konten yang mengendalikan kiriman rutin. Perpustakaan tetap sinkron dengan Member Area. Hari kosong tidak mengirim.'};
  }
  async candidates({source=PROMPT_LIBRARY}={}){
   if(source!==PROMPT_LIBRARY)throw fail('Semua prompt aktif berasal dari Member Area.',400);
   const library=await this.published();
-  return {ok:true,rows:library.map(p=>({source,id:p.$id,title:p.title,category:p.category||'',preview_url:p.preview_url,summary:trim(p.prompt_text,145)})),total:library.length,next_cursor:null};
+  return {ok:true,rows:library.map(p=>({source,id:p.$id,title:p.title,category:p.category||'',preview_url:previewImages(p)[0]||'',summary:trim(p.prompt_text,145)})),total:library.length,next_cursor:null};
  }
  async previewContent({source=PROMPT_LIBRARY,prompt_id}={}){
   const promptId=String(prompt_id||'');
@@ -116,7 +131,8 @@ export class Marketing{
   const content=String(prompt.prompt_text);
   // Use the very same HTML chunks that Delivery.prompt sends to Telegram.
   // This admin-only read never creates a delivery, alters a slot, or calls Telegram.
-  return {ok:true,prompt:{id:prompt.$id,title:String(prompt.title||'Prompt PROMPTIONAL'),preview_url:String(prompt.preview_url||''),caption:String(prompt.title||'Prompt PROMPTIONAL').slice(0,900),fallback_title:String(prompt.title||'Prompt PROMPTIONAL').slice(0,200),chunks:promptChunks(content),length:[...content].length}};
+  const images=previewImages(prompt);
+  return {ok:true,prompt:{id:prompt.$id,title:String(prompt.title||'Prompt PROMPTIONAL'),preview_url:images[0]||'',images,caption:String(prompt.title||'Prompt PROMPTIONAL').slice(0,900),fallback_title:String(prompt.title||'Prompt PROMPTIONAL').slice(0,200),chunks:promptChunks(content),length:[...content].length}};
  }
  async saveSettings(input,actor){
   const prev=await this.config(),updated=sanitizeSettings(input,prev);

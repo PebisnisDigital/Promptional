@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {Marketing,campaignDay,validateUrl,slotId} from '../functions/activate-member/src/telegram/marketing.mjs';
+import {Marketing,campaignDay,validateUrl,slotId,previewImages} from '../functions/activate-member/src/telegram/marketing.mjs';
 import {contentHash} from '../functions/activate-member/src/telegram/marketing.mjs';
 import fs from 'node:fs';
 
@@ -80,12 +80,28 @@ test('admin preview uses actual escaped Telegram chunks without sending or chang
  assert.equal(content.prompt.id,'p1');
  assert.equal(content.prompt.caption,'Contoh p1');
  assert.equal(content.prompt.preview_url,'https://example.com/p1.webp');
+ assert.deepEqual(content.prompt.images,['https://example.com/p1.webp']);
  assert.deepEqual(content.prompt.chunks,['<pre>Perintah AI &lt;produk&gt; &amp; hasil akhir</pre>']);
  assert.equal(content.prompt.length,[...'Perintah AI <produk> & hasil akhir'].length);
  assert.equal(x.changes.length,writesBefore);
  await assert.rejects(()=>x.marketing.previewContent({source:'prompts',prompt_id:'p1'}),/Member Area/);
  x.sources.get('p2').is_published=false;
  await assert.rejects(()=>x.marketing.previewContent({prompt_id:'p2'}),/tidak lagi diterbitkan/);
+});
+test('Telegram gallery matches Member Area ordering, file ID priority, deduplication and four-slot limit',async()=>{
+ const x=setup(),prompt=x.sources.get('p1');
+ Object.assign(prompt,{preview_file_id:'bp/photo 1',preview_url:'https://example.com/unused.webp',preview_url_2:'https://example.com/two.webp',preview_url_3:'https://example.com/two.webp',preview_url_4:'https://example.com/four.webp'});
+ const images=previewImages(prompt);
+ assert.deepEqual(images,[
+  'https://sgp.cloud.appwrite.io/v1/storage/buckets/prompt-previews/files/bp%2Fphoto%201/view?project=badai-prompt-umkm',
+  'https://example.com/two.webp','https://example.com/four.webp'
+ ]);
+ const preview=await x.marketing.previewContent({prompt_id:'p1'});
+ assert.deepEqual(preview.prompt.images,images);
+ assert.equal(preview.prompt.preview_url,images[0]);
+ assert.equal((await x.marketing.get()).library.find(p=>p.id==='p1').preview_url,images[0]);
+ prompt.preview_url_3='http://insecure.invalid/third.webp';
+ assert.equal(previewImages(prompt).length,3);
 });
 test('moving a calendar slot swaps atomically and clears source for empty target',async()=>{
  const x=setup();for(const [day,id] of [[1,'p1'],[2,'p2'],[3,'p3']])await x.marketing.save({day,source:'scene_prompts',prompt_id:id},'admin');

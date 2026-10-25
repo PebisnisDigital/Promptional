@@ -15,5 +15,5 @@ export class MemoryTables{
 }
 export class MockTelegram{
  constructor(){this.calls=[];this.nextId=100;this.failMethod=null;this.error=null;this.webhook=''}
- async call(token,method,body={}){this.calls.push({method,body});if(method===this.failMethod)throw this.error||Object.assign(Error('Telegram offline'),{ambiguous:true});if(method==='getMe')return {id:123456,is_bot:true,username:'TestBadaiBot',first_name:'Bot simulasi'};if(method==='getWebhookInfo')return {url:this.webhook,pending_update_count:0};if(method==='setWebhook'){this.webhook=body.url;return true}if(method==='deleteMessage'||method==='deleteWebhook')return true;return {message_id:this.nextId++}}
+ async call(token,method,body={}){this.calls.push({method,body});if(method===this.failMethod)throw this.error||Object.assign(Error('Telegram offline'),{ambiguous:true});if(method==='getMe')return {id:123456,is_bot:true,username:'TestBadaiBot',first_name:'Bot simulasi'};if(method==='getWebhookInfo')return {url:this.webhook,pending_update_count:0};if(method==='setWebhook'){this.webhook=body.url;return true}if(method==='deleteMessage'||method==='deleteMessages'||method==='deleteWebhook')return true;if(method==='sendMediaGroup')return body.media.map(()=>({message_id:this.nextId++}));return {message_id:this.nextId++}}
 }

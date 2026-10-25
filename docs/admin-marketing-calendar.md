@@ -8,6 +8,7 @@
 - **DRAF**: kiriman rutin ditahan. **AKTIF**: hanya hari yang berisi prompt terbit yang boleh dikirim kepada Member Free sesuai hari dan jam kampanye. Member Premium membuka perpustakaan penuh langsung lewat website.
 - Hari kosong dilewati, tidak ada rotasi otomatis maupun fallback ke prompt lain. Setelah Hari 365 kampanye berhenti kecuali loop diaktifkan.
 - Penghapusan pesan jatuh tempo tetap diproses walaupun kampanye DRAF, dengan jadwal `delete_at` yang dicatat untuk masing-masing kiriman. Pengiriman tes ke akun penguji juga dihapus.
+- Gambar memakai urutan yang sama seperti Member Area (`preview_file_id`/`preview_url` hingga slot keempat, tanpa URL duplikat). Satu gambar menggunakan `sendPhoto`, 2–4 gambar menggunakan satu album `sendMediaGroup`. Seluruh ID foto, pesan prompt, dan tombol upselling dicatat sebagai satu delivery untuk penghapusan bersama (`deleteMessages` batch, fallback individual). Bila Telegram menolak album secara definitif, bot mencoba foto satu per satu; timeout ambigu tidak pernah dikirim ulang otomatis.
 
 ## Pengaman server
 
@@ -27,7 +28,7 @@
 
 ## Preview percakapan Telegram untuk admin
 
-- Ketuk hari di kalender setelah mengisi slot, atau pilih prompt untuk sebuah hari yang masih kosong. Editor menampilkan simulasi layar Telegram: gambar/judul, semua potongan teks prompt (`promptChunks` yang sama dengan kiriman asli), upselling dengan format Telegram, tombol CTA, dan jam/hari WIB.
+- Ketuk hari di kalender setelah mengisi slot, atau pilih prompt untuk sebuah hari yang masih kosong. Editor menampilkan simulasi layar Telegram: satu gambar atau album hingga empat gambar, semua potongan teks prompt (`promptChunks` yang sama dengan kiriman asli), upselling dengan format Telegram, tombol CTA, dan jam/hari WIB.
 - Admin bisa mengedit upselling dan CTA; perubahan langsung terlihat tanpa mengirim pesan. Panel pemeriksaan mengingatkan bila perubahan belum disimpan, gambar tidak tersedia, CTA kosong, atau durasi penghapusan belum valid. Setelah menyimpan, editor tetap menampilkan preview.
 - Endpoint admin `marketing-preview` memeriksa izin admin dan mengambil satu prompt `scene_prompts` yang published. Preview hanya membaca teks lengkap dan metadata gambar, **tidak membuat delivery, tidak mengirim Telegram, dan tidak mengubah slot**. Token bot tidak pernah diberikan kepada browser.
 - Tombol MUAT ULANG PREVIEW mengambil ulang prompt terbaru jika admin mengubah konten di perpustakaan pada tab lain. Media nyata bisa gagal di-fetch oleh Telegram meskipun tampil di browser; gunakan Uji Kirim Konten untuk verifikasi final.
