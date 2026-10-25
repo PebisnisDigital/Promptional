@@ -10,7 +10,7 @@ export class Delivery{
   const profile=await s.sync(member);member=profile;
    // A paid customer owns Member Area access, never a recurring Premium prompt subscription.
    if(!test&&member.plan==='premium')return {skipped:true,reason:'Akses Premium tersedia di Member Area, bukan kiriman harian.'};
-  let prompt=promptId?(await s.store.get('scene_prompts',promptId)||await s.store.get('prompts',promptId)):null;
+  let prompt=promptId?await s.store.get('scene_prompts',promptId):null;
   if(promptId&&!prompt?.is_published)throw fail('Prompt belum dipublikasikan.');
   const campaignCfg=!test&&member.plan==='free'&&s.marketingEnabled?await s.marketing.config():null;
   const marketingTime=campaignCfg?.enabled?campaignCfg.send_time:setting.premium_time;
@@ -24,10 +24,11 @@ export class Delivery{
   }
   if(!prompt){
    const cursor=(await s.store.state(id('cursor',member.telegram_id)))?.data.prompt_id;
-   const validCursor=cursor&&await s.store.get('scene_prompts',cursor)?cursor:null;
-   let page=await s.store.list('scene_prompts',[['equal','is_published',true]],1,validCursor);
-   if(!page.rows.length)page=await s.store.list('scene_prompts',[['equal','is_published',true]],1);
-   prompt=page.rows[0];
+   // One canonical Member Area library, one deterministic order. Newly published
+   // prompts automatically become available on the next daily rotation.
+   const library=await s.marketing.published();
+   const index=library.findIndex(p=>p.$id===cursor);
+   prompt=library.length?library[(index+1)%library.length]:null;
   }
   if(!prompt||!prompt.prompt_text)throw fail('Belum ada prompt published yang bisa dikirim.');
   if(marketingTestOffer){
