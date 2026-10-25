@@ -47,7 +47,7 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   await page.route('**/api/telegram/manager',async route=>{
    const body=route.request().postDataJSON();calls.push(body);
    let reply={ok:true};
-   if(body.action==='overview')reply={ok:true,settings:{main_bot_id:'test-main-bot'},testers:[{bot_id:'test-main-bot',telegram_id:'778812345'}]};
+   if(body.action==='overview')reply={ok:true,bots:[],settings:{main_bot_id:'test-main-bot',enabled:false,paused:true,dry_run:true,premium_time:'06:00',free_days:1,premium_days:1,delete_hours:24,term_days:365,batch_size:5},stats:{},errors:[],members:[],prompts:[],send_enabled:false,testers:[{bot_id:'test-main-bot',telegram_id:'778812345'}]};
    if(body.action==='marketing-test-send')reply={ok:true,status:'sent',test:true,day:body.day,delivery_id:'test_delivery'};
    if(body.action==='marketing-get')reply={ok:true,settings:marketingSettings,slots:[...slots.values()],library,stats:{filled:slots.size,empty:365-slots.size,target:365,published:library.length,active:false,campaign_day:1},server_gate:false};
    if(body.action==='marketing-slot-save'){const item={...body,title:body.prompt_id==='p1'?'BP001 • Foto Editorial':'BP002 • Poster Produk'};slots.set(body.day,item);reply={ok:true,slot:item}}
