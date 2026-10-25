@@ -63,7 +63,7 @@ export async function updateTelegramBuyer(s,body={},actorId){
  const next=plan==='premium'&&member.plan!=='premium'
    ?new Date(s.now()).toISOString()
    :member.plan==='premium'&&plan==='free'
-    ?nextAt(s.now(),(await s.config()).free_days,(await s.config()).premium_time)
+    ?nextAt(s.now(),1,(await s.marketing.config()).send_time)
     :member.next_send_at;
  await s.store.update('telegram_members',member.$id,{first_name:name,is_active:active,plan,
   appwrite_user_id:userId||null,premium_until:until,

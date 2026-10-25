@@ -19,8 +19,8 @@ Tabel lama `prompts` menyimpan 500 template teks UMKM dari sistem sebelumnya. Ta
 - Dua slot BP001/BP002 yang sudah dibuat admin tetap dipertahankan. Tidak ada penghapusan atau pengisian otomatis pada hari lain.
 - Edit teks/gambar atau publikasi di Admin Prompt langsung memengaruhi isi perpustakaan dan konten slot terkait. Prompt draf tidak dikirim; slot yang merujuk prompt tidak lagi tersedia ditandai untuk review.
 - Bot **tidak mempunyai fallback rotasi otomatis**. Bila kampanye Marketing belum aktif atau hari tersebut kosong, bot melewati kiriman. `/start` dan `/prompt` memberi balasan informatif bila hari itu tidak tersedia.
-- Pengiriman kepada member Free dan penghapusan pesan tetap melalui mekanisme yang sudah ada, mengikuti `free_days`, `premium_time`, dan `delete_hours` di pengaturan bot. Nilai produksi yang ditemukan saat audit: 1 hari, 06.00 WIB, dan 24 jam.
-- Menyimpan/menyinkronkan konten **tidak mengaktifkan pengiriman**. Sakelar `TELEGRAM_MARKETING_ENABLED`, `TELEGRAM_SEND_ENABLED`, akun penguji, dan pengaturan pause/dry-run tetap berlaku.
+- Pengiriman kepada member Free hanya menggunakan **Kalender Konten Telegram 365 hari**, dengan pengaturan `enabled` (DRAF/AKTIF), `start_date`, `send_time` (WIB), `delete_hours` (1–36 jam), dan hari yang diisi manual. Durasi default penghapusan: 24 jam. Member Premium tetap melihat seluruh prompt di Member Area.
+- Menyimpan/menyinkronkan konten **tidak mengaktifkan pengiriman**. Pengiriman rutin hanya aktif bila admin memilih AKTIF di kalender dan `TELEGRAM_SEND_ENABLED` mengizinkan kirim. Formulir lama (`telegram-settings.enabled/paused/dry_run/free_days/premium_time/delete_hours`) ditutup untuk pengiriman rutin; data lama dipertahankan sebagai arsip dan untuk konfigurasi bot. Penghapusan pesan jatuh tempo tetap bekerja saat kalender DRAF.
 
 ## Verifikasi sebelum rilis
 

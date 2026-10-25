@@ -5,19 +5,22 @@ import {telegramHtml} from './engagement.mjs';
 export class Delivery{
  constructor(service){this.s=service}
  async prompt(member,bot,{key,kind='prompt',promptId,test=false,marketingTestOffer=null,marketingTestFingerprint=null,welcome=false,now=this.s.now()}={}){
-  const s=this.s,setting=await s.config(),consent=await s.consent(bot.$id,member.telegram_id);
+  const s=this.s,consent=await s.consent(bot.$id,member.telegram_id);
   if(!consent||consent.status!=='allowed')throw fail('Pengguna belum START bot ini atau telah memblokirnya.');
   const profile=await s.sync(member);member=profile;
    // A paid customer owns Member Area access, never a recurring Premium prompt subscription.
    if(!test&&member.plan==='premium')return {skipped:true,reason:'Akses Premium tersedia di Member Area, bukan kiriman harian.'};
   let prompt=promptId?await s.store.get('scene_prompts',promptId):null;
   if(promptId&&!prompt?.is_published)throw fail('Prompt belum dipublikasikan.');
-  const campaignCfg=!test&&member.plan==='free'?await s.marketing.config():null;
-  const marketingTime=campaignCfg?.enabled?campaignCfg.send_time:setting.premium_time;
+  const campaignCfg=await s.marketing.config();
+  const marketingTime=campaignCfg.send_time;
+  const deleteHours=campaignCfg.delete_hours;
   if(!prompt&&!promptId&&!test&&member.plan==='free'){
    const planned=await s.marketing.forFree(now);
    if(planned.skip){
-    await s.store.update('telegram_members',member.$id,{next_send_at:nextAt(now,setting.free_days,marketingTime)});
+    // A DRAF campaign must not consume a member's next-day slot. When the admin
+    // activates it later today, that member must still be eligible to receive it.
+    if(campaignCfg.enabled)await s.store.update('telegram_members',member.$id,{next_send_at:planned.next_send_at||nextAt(now,1,marketingTime)});
     return {skipped:true,reason:planned.reason,marketing_day:planned.day};
    }
    prompt=planned.prompt;
@@ -30,11 +33,12 @@ export class Delivery{
    if(contentHashMarketing(prompt)!==marketingTestFingerprint)throw fail('Isi prompt pengujian berubah. Review ulang hari ini.',409);
    prompt={...prompt,marketing_offer:marketingTestOffer};
   }
-  const deliveryPlan=test&&marketingTestOffer?'free':member.plan;
+  // Prompt tests also expire, even when the authorized tester owns Premium.
+  const deliveryPlan=test?'free':member.plan;
   const deliveryKey=key||id(member.telegram_id,member.next_send_at||'first',kind),rowId=id('delivery',deliveryKey);
   let row=await s.store.get('telegram_deliveries',rowId);
   if(row&&row.dispatch_status!=='retry'){
-   if(!test&&row.dispatch_status==='sent'&&row.kind==='prompt'&&Number(member.delivery_day||0)<Number(row.day_number)){await s.store.update('telegram_members',member.$id,{delivery_day:row.day_number,last_sent_at:row.sent_at,next_send_at:nextAt(Date.parse(row.sent_at),row.plan==='premium'?setting.premium_days:setting.free_days,row.plan==='free'?marketingTime:setting.premium_time)})}
+   if(!test&&row.dispatch_status==='sent'&&row.kind==='prompt'&&Number(member.delivery_day||0)<Number(row.day_number)){await s.store.update('telegram_members',member.$id,{delivery_day:row.day_number,last_sent_at:row.sent_at,next_send_at:nextAt(Date.parse(row.sent_at),1,marketingTime)})}
    return {duplicate:true,delivery:row};
   }
   if(row&&row.bot_id!==bot.$id)return {duplicate:true,requires_review:true};
@@ -72,22 +76,22 @@ export class Delivery{
     const offer=prompt.marketing_offer;
     const message=await s.telegram.call(token,'sendMessage',{
      chat_id:consent.data.chat_id,
-     text:telegramHtml((test?'[UJI MARKETING — HANYA TESTER]\n\n':'')+offer.text+'\n\nPesan gratis akan dihapus setelah '+setting.delete_hours+' jam. Prompt Free berikutnya dalam '+setting.free_days+' hari.',{max:1800}),
+     text:telegramHtml((test?'[UJI MARKETING — HANYA TESTER]\n\n':'')+offer.text+'\n\nPesan gratis akan dihapus setelah '+deleteHours+' jam. Prompt Free berikutnya sesuai kalender harian admin.',{max:1800}),
      parse_mode:'HTML',
      reply_markup:{inline_keyboard:[[{text:offer.label,url:offer.url}]]}
     });
     ids.push(String(message.message_id));
     await s.store.update('telegram_deliveries',rowId,{message_id:ids[0],message_ids:JSON.stringify(ids)});
    }
-   await s.store.update('telegram_deliveries',rowId,{dispatch_status:'sent',plan:deliveryPlan,sent_at:new Date(now).toISOString(),error_code:warning,delete_at:deliveryPlan==='free'?new Date(now+setting.delete_hours*3600000).toISOString():null});
+   await s.store.update('telegram_deliveries',rowId,{dispatch_status:'sent',plan:deliveryPlan,sent_at:new Date(now).toISOString(),error_code:warning,delete_at:deliveryPlan==='free'?new Date(now+deleteHours*3600000).toISOString():null});
    if(!test){
     await s.store.putState(id('cursor',member.telegram_id),{prompt_id:prompt.$id},{kind:'cursor',telegram_id:member.telegram_id});
-    await s.store.update('telegram_members',member.$id,{delivery_day:(member.delivery_day||0)+1,last_sent_at:new Date(now).toISOString(),next_send_at:nextAt(now,setting.free_days,marketingTime)});
+    await s.store.update('telegram_members',member.$id,{delivery_day:(member.delivery_day||0)+1,last_sent_at:new Date(now).toISOString(),next_send_at:nextAt(now,1,marketingTime)});
    }
    return {ok:true,message_ids:ids,delivery_id:rowId,prompt_id:prompt.$id,warning};
   }catch(e){
    const uncertain=e.ambiguous||ids.length>0,status=uncertain?'uncertain':test?'failed':e.retryAfter?'retry':'failed';
-   await s.store.update('telegram_deliveries',rowId,{dispatch_status:status,error_code:safeError(e),message_ids:JSON.stringify(ids),message_id:ids[0]||'pending',retry_at:status==='retry'?new Date(now+Math.max(60,e.retryAfter)*1000).toISOString():null,delete_at:ids.length&&deliveryPlan==='free'?new Date(now+setting.delete_hours*3600000).toISOString():null});
+   await s.store.update('telegram_deliveries',rowId,{dispatch_status:status,error_code:safeError(e),message_ids:JSON.stringify(ids),message_id:ids[0]||'pending',retry_at:status==='retry'?new Date(now+Math.max(60,e.retryAfter)*1000).toISOString():null,delete_at:ids.length&&deliveryPlan==='free'?new Date(now+deleteHours*3600000).toISOString():null});
    if(e.blocked)await s.store.putState(id('consent',bot.$id,member.telegram_id),consent.data,{kind:'consent',bot_id:bot.$id,telegram_id:member.telegram_id,status:'blocked'});
    return {ok:false,status,error:safeError(e),delivery_id:rowId};
   }
@@ -103,8 +107,9 @@ export class Delivery{
   if(row.dispatch_status==='deleted')return {ok:true,already_deleted:true};
   if(!JSON.parse(row.message_ids||'[]').length)throw fail('Pesan belum memiliki Message ID yang dapat dihapus.');
   const s=this.s,bot=await s.store.get('telegram_bots',row.bot_id);if(!bot)return {ok:false,error:'Konfigurasi bot tidak ditemukan.'};
-  const remaining=[];for(const message_id of JSON.parse(row.message_ids||'[]'))try{await s.telegram.call(s.token(bot),'deleteMessage',{chat_id:row.chat_id,message_id:Number(message_id)})}catch(e){if(!e.alreadyDeleted)remaining.push(message_id)}
+  const remaining=[],errors=[];for(const message_id of JSON.parse(row.message_ids||'[]'))try{await s.telegram.call(s.token(bot),'deleteMessage',{chat_id:row.chat_id,message_id:Number(message_id)})}catch(e){if(!e.alreadyDeleted){remaining.push(message_id);errors.push(safeError(e))}}
   if(!remaining.length){await s.store.update('telegram_deliveries',row.$id,{dispatch_status:'deleted',status:'deleted',deleted_at:new Date(s.now()).toISOString(),message_ids:'[]',delete_at:null});return {ok:true}}
-  await s.store.update('telegram_deliveries',row.$id,{delete_at:s.now()-Date.parse(row.sent_at)>47*3600000?null:row.delete_at,dispatch_status:'delete_failed',status:'delete_failed',message_ids:JSON.stringify(remaining),retry_at:new Date(s.now()+15*60000).toISOString()});return {ok:false,error:'Sebagian pesan belum dapat dihapus.'};
+  const expired=s.now()-Date.parse(row.sent_at)>47*3600000;
+  await s.store.update('telegram_deliveries',row.$id,{delete_at:expired?null:row.delete_at,dispatch_status:'delete_failed',status:'delete_failed',message_ids:JSON.stringify(remaining),error_code:errors.at(-1)||'Telegram menolak penghapusan.',retry_at:expired?null:new Date(s.now()+15*60000).toISOString()});return {ok:false,error:expired?'Batas penghapusan Telegram terlewati.':'Sebagian pesan belum dapat dihapus; akan dicoba ulang.'};
  }
 }

@@ -1,28 +1,26 @@
-# Admin MARKETING: 365-day Free Telegram Campaign Calendar
+# PROMPTIONAL · Telegram → Konten: Satu Kalender 365 Hari
 
-## What is new
-- Admin tab MARKETING, separate from Telegram bot configuration, inspired by the supplied 365-day rotation calendar screenshot.
-- Global WIB marketing calendar with 365 drag-and-drop days; optional loop after Day 365.
-- Library selector reads existing published, image-backed prompt cards from scene_prompts and prompts. The server rechecks published status, preview and fingerprint before sending.
-- Reorder or swap slots, mobile alternative: select prompt and tap the target day.
-- Every slot has editable upsell text sent AFTER image+prompt and an inline CTA (buy/upgrade Premium, Member Area, or HTTPS URL on the official BADAI PROMPT domain only).
-- CTA opens independent BADAI PROMPT website checkout, not an inline QRIS invoice. Telegram's payment policies still matter for promotional bot messages.
-- Configure campaign date, WIB send time for future Free sends, default copy, CTA defaults, optional 365-day repeat, and an OFF-by-default delivery toggle.
-- Free receives scheduled content ONLY when due at the existing every-three-days interval; Premium keeps its separate daily distribution. Empty global days skip without random fallback. Free 24-hour deletion remains as configured in Telegram Manager.
-- Original prompt is referenced, not overwritten. Upselling is a separate Telegram message after original prompt and included in the Free 24-hour deletion batch.
+## Pengaturan tunggal
 
-## Technical protections
-- Every action requires team-admin JWT via existing /api/telegram/manager rate-limited API.
-- Storage reuses telegram_state: kind marketing_slot/status scheduled, slot key telegram-marketing-NNN; settings at telegram-marketing-settings. No new DB table or automatic data changes on deploy.
-- TELEGRAM_MARKETING_ENABLED=false by default. Saving slots or settings cannot trigger broadcasts.
-- Actual activation also requires healthy sender, Telegram bot selection and manual enable after QA.
-- Test a Free delivery with media, prompt, upsell, CTA, 24h deletion, and a Premium subscriber not receiving the Free campaign.
-- Existing 29 curated Premium slots in telegram_state remain separate under telegram-content-NNN.
-- This is stacked on Draft PR #7/#8, which include a separate disabled in-bot QRIS prototype. Do not merge without parent audit. For compliant production, extract only Marketing features onto a clean approved baseline.
+- Semua prompt **published** berasal dari `scene_prompts`, database Member Area. Penerbitan menambah prompt ke perpustakaan Telegram, **bukan** jadwal kirim otomatis.
+- Admin memindahkan prompt dari perpustakaan ke satu slot kalender Hari 1–365, atau mengembalikannya. Slot hanya menyimpan referensi `prompt_id`; prompt beserta gambar diambil dari sumber yang sama saat terkirim.
+- Pengaturan jadwal tunggal: **DRAF/AKTIF**, tanggal mulai WIB, jam kirim WIB, durasi hapus pesan (1–36 jam, default 24), pilihan ulang setelah Hari 365, dan template upselling/tombol CTA. Tiap hari boleh punya upselling berbeda.
+- **DRAF**: kiriman rutin ditahan. **AKTIF**: hanya hari yang berisi prompt terbit yang boleh dikirim kepada Member Free sesuai hari dan jam kampanye. Member Premium membuka perpustakaan penuh langsung lewat website.
+- Hari kosong dilewati, tidak ada rotasi otomatis maupun fallback ke prompt lain. Setelah Hari 365 kampanye berhenti kecuali loop diaktifkan.
+- Penghapusan pesan jatuh tempo tetap diproses walaupun kampanye DRAF, dengan jadwal `delete_at` yang dicatat untuk masing-masing kiriman. Pengiriman tes ke akun penguji juga dihapus.
 
-## Scheduling semantics
-- Date numbering is global, Asia/Jakarta. If start date is Oct 10, Oct 11 is Day 2.
-- With a three-day Free cadence, a particular user sees only dates when their own delivery is due (not 365 daily messages). Different Free members may receive different calendar days.
-- After Day 365, default stops; optional loop repeats slot numbers, but per-member deduplication may prevent already received prompts being sent again.
-- Changes to today/past days do not change old Telegram messages. Time 06:00 is an approximate target; the scheduler polls about every 15 minutes.
-- The independent LP Premium price stays Rp199,000/365 days.
+## Pengaman server
+
+- `telegram-marketing-settings` menyimpan pengaturan jadwal. `telegram-marketing-NNN` (di `telegram_state`, kind `marketing_slot`) menyimpan slot Hari N. Migrasi tidak merombak ataupun menghapus slot yang telah diatur.
+- `TELEGRAM_SEND_ENABLED` masih merupakan **emergency lock** server dan bot utama harus aktif. Tidak ada lagi sakelar terpisah `TELEGRAM_MARKETING_ENABLED`.
+- Pengaturan otomatisasi lama di `telegram-settings` (`enabled`, `paused`, `dry_run`, `premium_time`, `free_days`, `delete_hours`) hanya arsip; UI-nya dihapus dan aksi admin `settings` ditolak. `main_bot_id` dan batas internal `batch_size` tetap digunakan untuk infrastruktur bot.
+- Broadcast manual dan Testing Center memerlukan tindakan serta konfirmasi admin tersendiri. Tidak terkait status kalender dan tidak dipicu oleh penyimpanan jadwal.
+- Cron Appwrite melakukan housekeeping penghapusan terlebih dahulu, sebelum memeriksa apakah kalender AKTIF. Waktu pengiriman tergantung frekuensi cron; jam 06.00 adalah batas waktu mulai, bukan jaminan sampai tepat detik 06.00.
+
+## Operasional
+
+1. Pastikan bot aktif di **Telegram → BOT**.
+2. Buka **Telegram → KONTEN**, tarik/pilih prompt ke Hari 1–365.
+3. Isi tanggal mulai, jam WIB, durasi penghapusan, dan CTA. Biarkan **DRAF** saat menyiapkan semua konten.
+4. Gunakan **Uji Kirim Konten** hanya pada tester yang telah diotorisasi.
+5. Setelah siap, pilih **AKTIF**, konfirmasi, lalu **SIMPAN PENGATURAN**. Tidak ada kiriman massal yang dipicu hanya oleh klik Simpan; cron mengirim konten yang jatuh tempo.

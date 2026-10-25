@@ -327,12 +327,6 @@ main{padding:16px}.view{display:none}.view.on{display:block}.title{display:flex;
   </section>
   
   <section class="tg-tab-panel" id="tgTabContent" data-tg-panel="content" role="tabpanel" aria-labelledby="tgTabContentBtn" hidden>
-    <section class="tg-panel"><h2>Pengiriman Prompt Gratis</h2><p>Prompt Free dikirim mengikuti interval yang dipilih dan dihapus otomatis berdasarkan durasi (default 24 jam). Member Premium mengakses semua prompt langsung di Member Area, bukan melalui kiriman rutin. Scheduler memakai WIB dengan toleransi antrean.</p>
-   <form id="tgSettingsForm"><div class="tg-check"><label><input type="checkbox" id="tgEnabled"> Aktifkan otomatisasi</label><label><input type="checkbox" id="tgDryRun" checked> Mode uji coba tanpa kirim sungguhan</label></div>
-    <div class="formgrid"><div class="field"><label for="tgTime">JAM PROMPT GRATIS (WIB)</label><input type="time" id="tgTime" value="06:00" required></div><div class="field"><label for="tgFreeDays">JEDA KIRIM ANTARKONTEN (HARI)</label><input type="number" id="tgFreeDays" value="1" min="1" max="30" required></div><div class="field" hidden aria-hidden="true"><label for="tgPremiumDays">INTERVAL PREMIUM (NONAKTIF)</label><input type="number" id="tgPremiumDays" value="1" min="1" max="30" required tabindex="-1"></div><div class="field"><label for="tgDeleteHours">HAPUS PESAN SETELAH (JAM)</label><input type="number" id="tgDeleteHours" value="24" min="1" max="47" required></div><div class="field"><label for="tgTermDays">MASA PREMIUM (HARI)</label><input type="number" id="tgTermDays" value="365" readonly></div><div class="field"><label for="tgBatch">MEMBER PER BATCH</label><input type="number" id="tgBatch" value="5" min="1" max="10" required></div></div>
-    <div class="tg-actions"><button class="btn pink" type="submit">SIMPAN PENGATURAN</button><button class="btn dark" id="tgPause" type="button">PAUSE</button><button class="btn dark" id="tgResume" type="button">RESUME</button><button class="btn dark" id="tgDryTest" type="button">UJI SCHEDULER TANPA KIRIM</button></div>
-   </form><p id="tgAutomationState">Status belum dimuat.</p>
-  </section>
       <div class="title tg-content-title"><div><div class="eyebrow">TELEGRAM → KONTEN</div><h2>Perpustakaan & Kalender 365 Hari</h2><p>Semua prompt terbit dari Member Area tersedia di perpustakaan. Teh yang menentukan prompt mana dikirim pada setiap hari.</p></div><button class="btn dark" id="mktRefresh" type="button">SEGARKAN</button></div>
   <div class="mkt-notice" id="mktNotice" role="status">Memuat kalender…</div>
   <div class="mkt-stats" id="mktStats" aria-label="Ringkasan kalender"></div>
@@ -379,10 +373,11 @@ main{padding:16px}.view{display:none}.view.on{display:block}.title{display:flex;
       <div class="mkt-fields">
         <label>TANGGAL MULAI<input id="mktStartDate" type="date" required></label>
         <label>JAM KAMPANYE<input id="mktTime" type="time" value="06:00" required></label>
-        <label>MODE PENGIRIMAN<select id="mktEnabled"><option value="false">DRAF — Tidak mengirim</option><option value="true">AKTIF — Memerlukan izin server</option></select></label>
+        <label>HAPUS PESAN SETELAH (JAM)<input id="mktDeleteHours" type="number" min="1" max="36" value="24" required></label>
+        <label>MODE PENGIRIMAN<select id="mktEnabled"><option value="false">DRAF — Tidak mengirim</option><option value="true">AKTIF — Kirim sesuai kalender</option></select></label>
       </div>
       <label class="mkt-loop"><input id="mktLoop" type="checkbox"> Ulangi kalender mulai Hari 1 setelah Hari 365</label>
-      <p class="mkt-footnote">Hari 1 mengikuti tanggal mulai WIB. Hanya hari yang telah diisi manual yang dapat dikirim; hari kosong dilewati. Pesan Free dihapus mengikuti durasi pengaturan bot (default 24 jam). Menyusun kalender tidak langsung mengaktifkan pengiriman.</p>
+      <p class="mkt-footnote">Hari 1 mengikuti tanggal mulai WIB. Hanya hari yang telah diisi manual yang dapat dikirim; hari kosong dilewati. Mode DRAF menghentikan kiriman rutin, tetapi pesan yang sudah terkirim tetap dijadwalkan untuk dihapus. Durasi hapus maksimum 36 jam agar ada waktu untuk proses penghapusan Telegram.</p>
       <div class="mkt-subhead">TEMPLATE UPSELLING DEFAULT</div>
       <textarea id="mktDefaultOffer" rows="3" maxlength="850" placeholder="Pesan upselling setelah prompt terkirim…" required></textarea>
       <div class="mkt-fields mkt-fields-three"><label>TEKS TOMBOL CTA<input id="mktDefaultLabel" maxlength="40" required></label><label>TUJUAN CTA<select id="mktDefaultType"><option value="premium">Penawaran Premium</option><option value="member">Member Area</option><option value="url">Link PROMPTIONAL</option></select></label><label>LINK (OPSIONAL)<input id="mktDefaultUrl" type="url" placeholder="https://promptional.vercel.app/"></label></div>
@@ -392,13 +387,13 @@ main{padding:16px}.view{display:none}.view.on{display:block}.title{display:flex;
 
   <section class="mkt-schedule" aria-labelledby="mktTestTitle">
     <div class="mkt-head"><h2 id="mktTestTitle">Uji Kirim Konten ke Telegram</h2><span class="mkt-caption">HANYA AKUN PENGUJI • TIDAK BROADCAST</span></div>
-    <p class="mkt-footnote">Uji gambar, prompt lengkap, pesan upselling dan tombol CTA. Akun tujuan harus diberi izin sebagai penguji di tab KONTEN. Pengiriman ini tidak mengubah jadwal member Free dan tidak memerlukan aktivasi otomatisasi Marketing.</p>
+    <p class="mkt-footnote">Uji gambar, prompt lengkap, pesan upselling dan tombol CTA. Akun tujuan harus diberi izin sebagai penguji di tab BOT. Pengiriman ini tidak mengubah jadwal member Free dan bisa dilakukan ketika kalender DRAF.</p>
     <form id="mktTestForm" class="mkt-test-form">
       <label>HARI KONTEN <input id="mktTestDay" type="number" min="1" max="365" value="1" required></label>
       <label>AKUN TELEGRAM PENGUJI <select id="mktTestUser" required><option value="">Memuat daftar penguji…</option></select></label>
       <button class="btn pink" id="mktTestButton" type="submit">KIRIM TES MARKETING</button>
     </form>
-    <p class="mkt-footnote" id="mktTestStatus" role="status" aria-live="polite">Pilih akun penguji, lalu kirim satu kali. Pesan uji akan dijadwalkan untuk dihapus setelah 24 jam sesuai pengaturan bot.</p>
+    <p class="mkt-footnote" id="mktTestStatus" role="status" aria-live="polite">Pilih akun penguji, lalu kirim satu kali. Pesan uji juga dihapus sesuai durasi pada Pengaturan jadwal.</p>
   </section>
 
   </section>

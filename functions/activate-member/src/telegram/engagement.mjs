@@ -80,8 +80,6 @@ export class Engagement{
   async sendBatch(body,actor){
     if(body.confirmation!=='KIRIM BROADCAST')throw fail('Ketik KIRIM BROADCAST sebagai konfirmasi pengiriman.',400);
     await this.s.requireSend();
-    const setting=await this.s.config();
-    if(!setting.enabled||setting.paused)throw fail('Aktifkan bot dan RESUME terlebih dahulu.',409);
     const code=String(body.id||''),key=id('broadcast',code);
     const record=await this.s.store.state(key),campaign=record?.data;
     if(!campaign||campaign.id!==code)throw fail('Broadcast tidak ditemukan.',404);
@@ -101,7 +99,9 @@ export class Engagement{
       }
       if(!claimed)throw fail('Batch masih diproses. Tunggu 2 menit lalu segarkan status.',409);
     }
-    const size=Math.min(5,Math.max(1,Number(setting.batch_size)||5));
+    // The retired automation settings still hold an internal batch-size limit,
+    // but their enabled/paused flags never authorize or block a manual broadcast.
+    const size=Math.min(5,Math.max(1,Number((await this.s.config()).batch_size)||5));
     const list=await this.s.store.list('telegram_state',[['equal','kind','consent'],['equal','bot_id',bot.$id],['equal','status','allowed']],size,campaign.cursor||undefined);
     let sent=0,skipped=0,failed=0;
     for(const recipient of list.rows){

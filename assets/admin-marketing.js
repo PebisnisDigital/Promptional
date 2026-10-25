@@ -23,6 +23,7 @@
   const s=state.settings;
   $('mktStartDate').value=s.start_date||'';
   $('mktTime').value=s.send_time||'06:00';
+  $('mktDeleteHours').value=s.delete_hours??24;
   $('mktLoop').checked=s.loop_campaign===true;
   $('mktEnabled').value=String(Boolean(s.enabled));
   $('mktEnabled').querySelector('option[value="true"]').disabled=!state.server_gate;
@@ -30,7 +31,7 @@
   $('mktDefaultLabel').value=s.default_cta_label||'BUKA PREMIUM';
   $('mktDefaultType').value=s.default_cta_type||'premium';
   $('mktDefaultUrl').value=s.default_cta_url||'';
-  $('mktGate').textContent=state.server_gate?'Izin server aktif. Hanya hari yang Teh jadwalkan manual yang dapat dikirim setelah kampanye diaktifkan.':'JADWAL MASIH DRAF: prompt boleh diseret ke kalender, tetapi pengiriman memerlukan izin server terpisah.';
+  $('mktGate').textContent=state.server_gate?(s.enabled?'Jadwal AKTIF. Konten terisi akan dikirim pada jam dan tanggal yang ditetapkan.':'Jadwal DRAF. Semua pengiriman rutin ditahan; penghapusan kiriman terdahulu tetap berjalan.'):'Pengiriman server belum tersedia. Kalender tersimpan sebagai DRAF.';
   $('mktDefaultUrl').disabled=$('mktDefaultType').value!=='url';
  }
  function statistics(){
@@ -201,7 +202,7 @@
  }
  function refreshMock(){
   $('mktMockContent').textContent='🖼 '+(editing?.title||'PROMPT')+'\n\nIsi prompt lengkap yang dipilih dari Member Area akan dikirim terlebih dahulu.';
-  $('mktMockOffer').textContent=$('mktEditOffer').value+'\n\nPesan gratis dihapus setelah '+Number($('tgDeleteHours')?.value||24)+' jam (sesuai pengaturan KONTEN).';
+  $('mktMockOffer').textContent=$('mktEditOffer').value+'\n\nPesan gratis dihapus setelah '+Number($('mktDeleteHours')?.value||24)+' jam (sesuai Pengaturan jadwal).';
   $('mktMockButton').textContent=($('mktEditLabel').value||'BUKA PREMIUM')+' ↗';
   $('mktEditUrl').disabled=$('mktEditType').value!=='url';
  }
@@ -256,10 +257,12 @@
  $('mktSearch').addEventListener('input',renderCandidates);
  $('mktRefresh').addEventListener('click',()=>void act(refresh));
  $('mktDefaultType').addEventListener('change',()=>{$('mktDefaultUrl').disabled=$('mktDefaultType').value!=='url'});
+ $('mktDeleteHours').addEventListener('input',refreshMock);
  $('mktSettingsForm').addEventListener('submit',e=>{e.preventDefault();void act(async()=>{
-  const body={start_date:$('mktStartDate').value,send_time:$('mktTime').value,enabled:$('mktEnabled').value==='true',loop_campaign:$('mktLoop').checked,default_offer:$('mktDefaultOffer').value,default_cta_label:$('mktDefaultLabel').value,default_cta_type:$('mktDefaultType').value,default_cta_url:$('mktDefaultUrl').value};
-  const r=await request('marketing-settings',body);state.settings=r.settings;statistics();renderCalendar();
-  notice('Pengaturan Konten Telegram tersimpan. Menyimpan tidak otomatis mengirim pesan.','success');
+  const body={start_date:$('mktStartDate').value,send_time:$('mktTime').value,delete_hours:Number($('mktDeleteHours').value),enabled:$('mktEnabled').value==='true',loop_campaign:$('mktLoop').checked,default_offer:$('mktDefaultOffer').value,default_cta_label:$('mktDefaultLabel').value,default_cta_type:$('mktDefaultType').value,default_cta_url:$('mktDefaultUrl').value};
+  if(body.enabled&&!state.settings.enabled&&!confirm('AKTIFKAN kalender 365 hari? Konten yang sudah dijadwalkan akan dikirim otomatis ke member Free sesuai tanggal dan jam WIB.'))return;
+  const r=await request('marketing-settings',body);state.settings=r.settings;settingsForm();statistics();renderCalendar();
+  notice(body.enabled?'Kalender AKTIF. Hanya hari terisi yang dikirim pada jadwal WIB.':'Kalender DRAF tersimpan. Tidak ada kiriman rutin.','success');
  })});
  $('mktEditForm').addEventListener('submit',e=>{e.preventDefault();void act(async()=>{
   if(!selectedDay||!editing)throw Error('Pilih hari dan prompt dahulu.');

@@ -13,8 +13,9 @@ import {MemoryTables,MockTelegram} from './fixtures/telegram-memory.mjs';
 const NOW=Date.parse('2026-10-09T23:00:00Z'),TOKEN='123456:FAKE_TEST_TOKEN_DO_NOT_USE_1234567890';
 async function fixture({manual=true}={}){
  const tables=new MemoryTables,store=new Store(tables,Query),telegram=new MockTelegram;
- const s=new Service({store,telegram,key:randomBytes(32).toString('base64'),now:()=>NOW,sendEnabled:true,marketingEnabled:true,verifyPaidAccess:async()=>true,verifyUser:async jwt=>{if(jwt!=='member-session')throw Object.assign(Error('Unauthorized'),{status:401});return {$id:'website-user'}},verifyAdmin:async jwt=>{if(jwt!=='admin-session')throw Object.assign(Error('Unauthorized'),{status:403});return {$id:'admin'}}});
+ const s=new Service({store,telegram,key:randomBytes(32).toString('base64'),now:()=>NOW,sendEnabled:true,verifyPaidAccess:async()=>true,verifyUser:async jwt=>{if(jwt!=='member-session')throw Object.assign(Error('Unauthorized'),{status:401});return {$id:'website-user'}},verifyAdmin:async jwt=>{if(jwt!=='admin-session')throw Object.assign(Error('Unauthorized'),{status:403});return {$id:'admin'}}});
  const {bot}=await s.admin('save',{token:TOKEN,name:'Bot utama'},'admin-session');await store.putState('telegram-settings',{...defaults,enabled:true,paused:false,dry_run:false,main_bot_id:bot.$id});
+ await store.update('telegram_bots',bot.$id,{is_active:true});
  await store.create('scene_prompts','published',{is_published:true,title:'Prompt asli',prompt_text:'Teks asli <tag> & karakter 😀',preview_url:'https://example.com/preview.jpg'});
  await store.create('scene_prompts','draft',{is_published:false,title:'Draft',prompt_text:'Rahasia draft'});
  if(manual){
@@ -41,19 +42,31 @@ test('without a manually assigned day, START and /prompt cannot send any library
  assert(r.ok);
  assert.equal(f.telegram.calls.filter(c=>c.method==='sendPhoto').length,0);
  assert.equal((await f.s.marketing.get()).stats.filled,0);
+ await f.s.marketing.saveSettings({enabled:true,start_date:'2026-10-10'},'admin-session');
  await f.store.update('telegram_members',m.$id,{next_send_at:new Date(NOW).toISOString()});
  const run=await f.s.scheduler();
  assert.equal(run.sent,0);
  assert.equal(run.skipped,1);
  assert.equal(f.telegram.calls.filter(c=>c.method==='sendPhoto').length,0);
 });
-test('a server-disabled Marketing gate never falls back to unscheduled library rotation',async()=>{
- const f=await fixture();f.s.marketingEnabled=false;
+test('a disabled server send gate never falls back to unscheduled library rotation',async()=>{
+ const f=await fixture();f.s.sendEnabled=false;
  const memberId=id('member',777);
  await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update());
  const memberRow=await f.store.get('telegram_members',memberId);
  assert.equal(memberRow.delivery_day,0);
  assert.equal(f.telegram.calls.filter(c=>c.method==='sendPhoto').length,0);
+});
+test('START in DRAF retains first eligible send so activation can deliver that day',async()=>{
+ const f=await fixture({manual:false});
+ await f.s.marketing.save({day:1,source:'scene_prompts',prompt_id:'published'},'admin');
+ const m=await member(f);
+ assert.equal(m.delivery_day,0);
+ assert.equal(m.next_send_at,new Date(NOW).toISOString());
+ await f.s.marketing.saveSettings({enabled:true,start_date:'2026-10-10'},'admin');
+ const result=await f.s.scheduler();
+ assert.equal(result.sent,1);
+ assert.equal((await f.store.get('telegram_members',m.$id)).delivery_day,1);
 });
 test('START existing and /prompt honor free interval; /premium never grants access',async()=>{const f=await fixture();await member(f);await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update(2,'/start'));await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update(3,'/prompt'));await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update(4,'/premium'));const m=await f.store.get('telegram_members',id('member',777));assert.equal(m.delivery_day,1);assert.equal(m.plan,'free');assert.equal((await f.store.list('member_profiles')).total,0);assert.equal(f.telegram.calls.filter(c=>c.method==='sendPhoto').length,1)});
 test('verified one-use linking reuses website account and activates entitlement',async()=>{const f=await fixture();await f.store.create('member_profiles','website-user',{status:'active',access_until:new Date(NOW+365*DAY).toISOString()});await member(f);const link=await f.s.linkToken('member-session'),token=new URL(link.url).searchParams.get('start').slice(5);let m=await f.store.get('telegram_members',id('member',777));m=await f.s.link(m,token);assert.equal(m.appwrite_user_id,'website-user');assert.equal(m.plan,'premium');assert.equal(Date.parse(m.next_send_at),NOW);await assert.rejects(f.s.link(m,token));await assert.rejects(f.s.linkToken('invalid-session'));assert.equal((await f.store.list('member_profiles')).total,1)});
@@ -67,7 +80,7 @@ test('admin test operations require authorized tester and cannot delete normal d
 test('bot switching requires healthy webhook and one-use confirmation',async()=>{const f=await fixture();await member(f);const prepared=await f.s.admin('prepare-switch',{bot_id:f.bot.$id},'admin-session');assert.equal(prepared.started_members,1);await assert.rejects(f.s.admin('activate',{bot_id:f.bot.$id,confirmation:'bad'},'admin-session'));assert((await f.s.admin('activate',{bot_id:f.bot.$id,confirmation:prepared.confirmation},'admin-session')).ok);await assert.rejects(f.s.admin('activate',{bot_id:f.bot.$id,confirmation:prepared.confirmation},'admin-session'));assert.equal((await f.s.config()).main_bot_id,f.bot.$id)});
 test('bot replacement cannot send without per-bot START permission',async()=>{const f=await fixture(),m=await member(f),replacement={...f.bot,$id:'other-bot'};await assert.rejects(f.s.delivery.prompt(m,replacement,{key:'other'}));assert.equal((await f.store.list('telegram_members')).total,1)});
 test('draft prompts cannot be distributed',async()=>{const f=await fixture(),m=await member(f);const before=f.telegram.calls.length;await assert.rejects(f.s.delivery.prompt(m,f.bot,{promptId:'draft',key:'draft'}));assert.equal(f.telegram.calls.length,before)});
-test('dry scheduler has no outbound sends; pause/resume preserve member rights',async()=>{const f=await fixture();await member(f);await f.store.update('telegram_members',id('member',777),{next_send_at:new Date(NOW).toISOString()});const before=f.telegram.calls.length,r=await f.s.scheduler({forceDry:true});assert.equal(r.dry_run,true);assert.equal(r.due,1);assert.equal(f.telegram.calls.length,before);await f.store.putState('telegram-settings',{...await f.s.config(),paused:true});assert((await f.s.scheduler()).paused)});
+test('dry scheduler does not send; calendar DRAF stops routine independent of legacy toggle',async()=>{const f=await fixture();await member(f);await f.store.update('telegram_members',id('member',777),{next_send_at:new Date(NOW).toISOString()});const before=f.telegram.calls.length,r=await f.s.scheduler({forceDry:true});assert.equal(r.dry_run,true);assert.equal(r.due,1);assert.equal(f.telegram.calls.length,before);await f.s.marketing.saveSettings({enabled:false},'admin-session');await f.store.putState('telegram-settings',{...await f.s.config(),enabled:true,paused:false,dry_run:false});assert((await f.s.scheduler()).paused)});
 test('scheduler sends due prompt, processes free deletion and sends one renewal reminder',async()=>{const f=await fixture(),m=await member(f);await f.store.create('member_profiles','website-user',{status:'active',access_until:new Date(NOW+2*DAY).toISOString()});await f.store.update('telegram_members',m.$id,{appwrite_user_id:'website-user',next_send_at:new Date(NOW-DAY).toISOString()});const old=(await f.store.list('telegram_deliveries')).rows[0];await f.store.update('telegram_deliveries',old.$id,{delete_at:new Date(NOW-1000).toISOString()});const r=await f.s.scheduler();assert.equal(r.sent,0);assert.equal(r.deleted,1);assert.equal(r.reminders,1);await f.s.scheduler();assert.equal(f.telegram.calls.filter(c=>c.method==='sendMessage'&&c.body.text.includes('Masa Premium berakhir')).length,1)});
 test('distributed rate limit prevents extra commands',async()=>{const f=await fixture();for(let i=0;i<2;i++)await f.store.rate('limited','test',NOW,2);await assert.rejects(f.store.rate('limited','test',NOW,2),e=>e.status===429)});
 test('long prompts stay within Telegram size limit and preserve text after HTML decode',()=>{const text='a&<😀>'.repeat(3000),chunks=promptChunks(text);assert(chunks.every(c=>c.length<4096));const decoded=chunks.map(c=>c.slice(5,-6).replaceAll('&amp;','&').replaceAll('&lt;','<').replaceAll('&gt;','>')).join('');assert.equal(decoded,text)});
@@ -77,15 +90,17 @@ test('manual activation grants annual access only when needed and preserves prio
 test('Telegram transport redacts token errors and never mislabels network failure success',async()=>{const t=new Telegram(async()=>{throw Error('URL with secret token')});await assert.rejects(t.call(TOKEN,'sendMessage',{chat_id:'1'}),e=>e.ambiguous&&!e.message.includes(TOKEN));const rejected=new Telegram(async()=>({json:async()=>({ok:false,error_code:401,description:'Unauthorized'})}));await assert.rejects(rejected.call(TOKEN,'getMe'),e=>e.telegramCode===401)});
 test('runtime auth verifies JWT account and confirmed server membership, never caller header',async()=>{const {identityVerifier}=await import('../functions/activate-member/src/telegram/auth.mjs');let membershipQuery;const auth=identityVerifier({getAccount:async jwt=>{if(jwt!=='valid')throw Error('Invalid JWT');return {$id:'verified-user',status:true}},listAdmins:async userId=>{membershipQuery=userId;return [{confirm:false}]}});await assert.rejects(auth.user('forged'),e=>e.status===401);await assert.rejects(auth.admin('valid'),e=>e.status===403);assert.equal(membershipQuery,'verified-user');const confirmed=identityVerifier({getAccount:async()=>({$id:'admin'}),listAdmins:async()=>[{confirm:true}]});assert.equal((await confirmed.admin('valid')).$id,'admin')});
 test('profile alone cannot grant premium without confirmed paid-team access',async()=>{const f=await fixture(),m=await member(f);await f.store.create('member_profiles','website-user',{status:'active',access_until:new Date(NOW+DAY).toISOString()});const linked=await f.store.update('telegram_members',m.$id,{appwrite_user_id:'website-user'});f.s.verifyPaidAccess=async()=>false;assert.equal((await f.s.sync(linked)).plan,'free')});
-test('pause stops delivery but still deletes due free messages',async()=>{const f=await fixture();await member(f);const row=(await f.store.list('telegram_deliveries')).rows[0];await f.store.update('telegram_deliveries',row.$id,{delete_at:new Date(NOW-1000).toISOString()});await f.store.putState('telegram-settings',{...await f.s.config(),paused:true});const before=f.telegram.calls.filter(c=>c.method.startsWith('send')).length,r=await f.s.scheduler();assert(r.paused);assert.equal(r.deleted,1);assert.equal(f.telegram.calls.filter(c=>c.method.startsWith('send')).length,before)});
+test('calendar DRAF stops sends but deletion continues despite any legacy setting',async()=>{const f=await fixture();await member(f);const row=(await f.store.list('telegram_deliveries')).rows[0];await f.store.update('telegram_deliveries',row.$id,{delete_at:new Date(NOW-1000).toISOString()});await f.s.marketing.saveSettings({enabled:false},'admin-session');await f.store.putState('telegram-settings',{...await f.s.config(),enabled:false,paused:true,dry_run:true});const before=f.telegram.calls.filter(c=>c.method.startsWith('send')).length,r=await f.s.scheduler();assert(r.paused);assert.equal(r.deleted,1);assert.equal(f.telegram.calls.filter(c=>c.method.startsWith('send')).length,before)});
+test('active calendar ignores obsolete paused and dry_run fields',async()=>{const f=await fixture();await f.store.putState('telegram-settings',{...await f.s.config(),enabled:false,paused:true,dry_run:true});const m=await member(f);assert.equal(m.delivery_day,1);assert.equal(f.telegram.calls.filter(c=>c.method==='sendPhoto').length,1)});
 test('successful send with interrupted member update reconciles without replay',async()=>{const f=await fixture(),m=await member(f);const row=(await f.store.list('telegram_deliveries')).rows[0];await f.store.update('telegram_members',m.$id,{delivery_day:0,last_sent_at:null,next_send_at:new Date(NOW).toISOString()});const current=await f.store.get('telegram_members',m.$id),before=f.telegram.calls.length;const r=await f.s.delivery.prompt(current,f.bot,{key:row.delivery_key});assert(r.duplicate);assert.equal(f.telegram.calls.length,before);assert.equal((await f.store.get('telegram_members',m.$id)).delivery_day,1)});
 test('published prompt cursor recovers after source prompt deletion',async()=>{const f=await fixture(),m=await member(f);await f.store.putState(id('cursor',m.telegram_id),{prompt_id:'deleted-prompt'},{kind:'cursor'});assert((await f.s.delivery.prompt(m,f.bot,{key:'new-after-deleted-cursor'})).ok)});
 test('actual Vercel handlers use dynamic ESM and reject forged headers without a JWT',async()=>{const previous=process.env.APPWRITE_API_KEY;process.env.APPWRITE_API_KEY='FAKE_TEST_KEY';try{for(const name of ['manager','link']){const {default:handler}=await import('../api/telegram/'+name+'.js');let status,payload;const res={setHeader(){},status(v){status=v;return this},json(v){payload=v;return this}};await handler({method:'POST',headers:{'x-appwrite-user-id':'admin'},body:{action:'overview'}},res);assert.equal(status,401);assert(payload.error);await handler({method:'GET',headers:{}},res);assert.equal(status,405)}}finally{if(previous===undefined)delete process.env.APPWRITE_API_KEY;else process.env.APPWRITE_API_KEY=previous}});
-test('disabled server locks automation paused and dry-run until owner release approval',async()=>{
- const f=await fixture();f.s.sendEnabled=false;await f.s.admin('settings',{enabled:false,paused:true,dry_run:true},'admin-session');const before=f.telegram.calls.length;
- for(const change of [{enabled:true},{paused:false},{dry_run:false}])await assert.rejects(f.s.admin('settings',change,'admin-session'),e=>e.status===409);
- const config=await f.s.config();assert.equal(config.enabled,false);assert.equal(config.paused,true);assert.equal(config.dry_run,true);assert.equal(f.telegram.calls.length,before);
- await assert.rejects(f.s.requireSend(true),e=>e.status===503);
+test('legacy automation settings endpoint is closed; server safety gate still holds',async()=>{
+ const f=await fixture();f.s.sendEnabled=false;const before=f.telegram.calls.length;
+ for(const change of [{enabled:true},{paused:false},{dry_run:false}])await assert.rejects(f.s.admin('settings',change,'admin-session'),e=>e.status===410);
+ await assert.rejects(f.s.marketing.saveSettings({enabled:true},'admin-session'),e=>e.status===409);
+ assert.equal(f.telegram.calls.length,before);
+ await assert.rejects(f.s.requireSend(),e=>e.status===503);
 });
 
 test('guest sandbox QRIS START activates one Telegram identity and blocks a second identity',async()=>{
