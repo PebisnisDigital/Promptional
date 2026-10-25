@@ -86,7 +86,7 @@ export async function resetSandboxBuyer(service,{order_id,confirmation}={},actor
  await service.store.update('member_profiles',expectedUser,{status:'blocked'});
  await service.store.update('telegram_members',member.$id,{
   plan:'free',premium_until:null,premium_started_at:null,
-  next_send_at:nextAt(service.now(),3,(await service.config()).premium_time)
+  next_send_at:nextAt(service.now(),3,(await service.marketing.config()).send_time)
  });
  await service.store.remove(ST,id('bot-qris-current',bot.$id,tg));
  // Never delete or change the original successful invoice.

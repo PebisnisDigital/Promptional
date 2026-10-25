@@ -23,7 +23,7 @@ test('Telegram uses four dedicated tabs, with bot controls moved out of Settings
  assert.ok(telegram,'Telegram main view is present');
  const buttons=[...telegram.matchAll(/data-tg-tab="([^"]+)"/g)].map(x=>x[1]);
  assert.deepEqual(buttons,['bot','content','broadcast','autoreply']);
- for(const id of ['v-telegram','tgBotForm','tgBotSelect','tgToken','tgSettingsForm','tgEnabled','tgTime','tgFreeDays','tgDeleteHours','tgTester','mktCalendar','mktEditOffer','mktLoop','tgBroadcastForm','tgReplyForm']){
+ for(const id of ['v-telegram','tgBotForm','tgBotSelect','tgToken','tgTester','mktCalendar','mktEditOffer','mktLoop','mktDeleteHours','mktSettingsForm','tgBroadcastForm','tgReplyForm']){
   assert.equal([...html.matchAll(new RegExp('id="'+id+'"','g'))].length,1,id+' stays unique');
   assert.ok(telegram.includes('id="'+id+'"'),id+' moved under main Telegram view');
  }

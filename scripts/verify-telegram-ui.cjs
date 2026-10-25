@@ -17,7 +17,7 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   await page.locator('[data-tg-action=connection]').click();await page.waitForFunction(()=>document.getElementById('tgStatus').textContent.includes('selesai'));
   shouldFail=true;await page.locator('[data-tg-action=webhook]').click();await page.waitForFunction(()=>document.getElementById('tgStatus').textContent.includes('belum dapat dihubungi'));assert.equal(await page.locator('[data-tg-action=webhook]').isEnabled(),true);
   await page.locator('#tgActivate').click();await page.waitForFunction(()=>document.getElementById('tgStatus').textContent.includes('Bot utama berhasil'));const activation=requests.find(x=>x.body.action==='activate');assert.equal(activation.body.confirmation,'one-use-confirmation');
-  await page.locator('#tgTester').selectOption('777');assert.equal(await page.locator('[data-tg-test=test-message]').isDisabled(),true);sendEnabled=true;await page.locator('#tgRefresh').click();await page.waitForFunction(()=>document.getElementById('tgAutomationState').textContent.includes('Izin kirim server: AKTIF'));assert.equal(await page.locator('#tgTester').inputValue(),'777');await page.locator('#tgPrompt').selectOption('published');await page.locator('#tgAuthorizeTester').click();await page.waitForFunction(()=>document.getElementById('tgStatus').textContent.includes('diotorisasi'));
+  await page.locator('#tgTester').selectOption('777');assert.equal(await page.locator('[data-tg-test=test-message]').isDisabled(),true);sendEnabled=true;await page.locator('#tgRefresh').click();await page.waitForFunction(()=>document.getElementById('tgTester').value==='777'&&!document.querySelector('[data-tg-test=test-message]').disabled);assert.equal(await page.locator('#tgTester').inputValue(),'777');await page.locator('#tgPrompt').selectOption('published');await page.locator('#tgAuthorizeTester').click();await page.waitForFunction(()=>document.getElementById('tgStatus').textContent.includes('diotorisasi'));
   await page.locator('[data-tg-test=test-prompt]').click();await page.waitForFunction(()=>document.getElementById('tgStatus').textContent.includes('berhasil dikirim'));await page.locator('#tgTestDelete').click();await page.waitForFunction(()=>document.getElementById('tgStatus').textContent.includes('berhasil dihapus'));assert.equal(requests.find(x=>x.body.action==='test-delete').body.delivery_id,'test-delivery');assert(requests.every(x=>x.authorization==='Bearer verified-test-session'));
   assert.deepStrictEqual(errors,[]);await page.close();console.log('Telegram admin '+width+' PASS: layout, real-data rendering, token clearing, JWT, connection/error, switch confirmation, test prompt/delete. Simulated.');
  }
@@ -35,7 +35,7 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   const page=await browser.newPage({viewport:{width,height:1000}}),pageErrors=[],calls=[],slots=new Map();
   page.on('pageerror',e=>pageErrors.push(e.message));page.on('dialog',dialog=>dialog.accept());await local(page);
   await page.route('**/assets/vendor/appwrite-28.1.0.js',r=>r.fulfill({body:fixture,contentType:'application/javascript'}));
-  let marketingSettings={enabled:false,loop_campaign:false,start_date:'2026-10-10',send_time:'06:00',timezone:'Asia/Jakarta',
+  let marketingSettings={enabled:false,loop_campaign:false,start_date:'2026-10-10',send_time:'06:00',delete_hours:24,timezone:'Asia/Jakarta',
     default_offer:'Suka prompt ini? Buka semua prompt Premium Rp199.000.',default_cta_label:'BUKA PREMIUM',default_cta_type:'premium',default_cta_url:''};
   const library=[
    {source:'scene_prompts',id:'p1',title:'BP001 • Foto Editorial',category:'Foto',preview_url:'https://example.com/p1.jpg',summary:'Prompt visual pertama'},
@@ -101,9 +101,11 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   assert.equal(sends[0].telegram_id,'778812345');
   assert.equal(marketingSettings.enabled,false);
   await page.locator('#mktLoop').check();
+  await page.locator('#mktDeleteHours').fill('18');
   await page.locator('#mktSettingsForm button[type="submit"]').click();
-  await page.waitForFunction(()=>document.getElementById('mktNotice').textContent.includes('Pengaturan Konten Telegram tersimpan'));
+  await page.waitForFunction(()=>document.getElementById('mktNotice').textContent.includes('Kalender DRAF tersimpan'));
   assert.equal(marketingSettings.loop_campaign,true);
+  assert.equal(marketingSettings.delete_hours,18);
   assert.equal(marketingSettings.enabled,false);
   if(width===1280){
    await page.locator('[data-mkt-day="3"]').dragTo(page.locator('#mktLibraryPanel'));

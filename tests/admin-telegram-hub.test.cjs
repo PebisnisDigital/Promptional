@@ -22,8 +22,9 @@ test('tabs are Bot, Konten, Broadcast and Autoreply only',()=>{
  assert.match(style,/\.telegram-hub \.tg-main-tabs/);
 });
 test('Bot and 365-day Content controls stay wired, with adjustable daily interval and deletion',()=>{
- for(const id of ['v-telegram','tgBotForm','tgToken','tgActivate','tgSettingsForm','tgFreeDays','tgDeleteHours','mktCalendar','mktEditOffer','mktDefaultOffer','mktLoop','mktTestForm'])assert.ok(html.includes('id="'+id+'"'));
- assert.match(html,/id="tgDeleteHours"[^>]*value="24"[^>]*min="1"[^>]*max="47"/);
+ for(const id of ['v-telegram','tgBotForm','tgToken','tgActivate','mktSettingsForm','mktDeleteHours','mktEnabled','mktTime','mktCalendar','mktEditOffer','mktDefaultOffer','mktLoop','mktTestForm'])assert.ok(html.includes('id="'+id+'"'));
+ assert.match(html,/id="mktDeleteHours"[^>]*min="1"[^>]*max="36"[^>]*value="24"/);
+ assert.doesNotMatch(html,/id="tgSettingsForm"/);
  assert.match(manager,/querySelector\('\[data-view="marketing"\]'\)/);
  assert.match(marketing,/querySelector\('\[data-tg-tab="content"\]'\)/);
 });

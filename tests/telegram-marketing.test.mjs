@@ -6,7 +6,7 @@ import fs from 'node:fs';
 
 const NOW=Date.parse('2026-10-10T02:00:00Z');
 const p=(id='p1')=>({$id:id,title:'Contoh '+id,category:'Foto AI',is_published:true,prompt_text:'Prompt unik untuk '+id,preview_url:'https://example.com/'+id+'.webp'});
-function setup({gate=false,globalSend=false,existing=[]}={}){
+function setup({globalSend=false}={}){
  const db=new Map(),changes=[],sources=new Map([['p1',p('p1')],['p2',p('p2')],['p3',p('p3')]]);
  const store={
   async get(table,key){if(table==='scene_prompts'||table==='prompts')return sources.get(key)||null;return db.get(key)||null},
@@ -32,9 +32,9 @@ function setup({gate=false,globalSend=false,existing=[]}={}){
    return res
   }
  };
- const s={store,now:()=>NOW,sendEnabled:globalSend,marketingEnabled:gate,config:async()=>({enabled:true,paused:false,dry_run:false})};
+ const s={store,now:()=>NOW,sendEnabled:globalSend,main:async()=>({is_active:true})};
  const marketing=new Marketing(s);
- return {marketing,store,db,changes,sources,gate};
+ return {marketing,store,db,changes,sources};
 }
 test('global WIB campaign day honors start date and optional loop',()=>{
  assert.equal(campaignDay('2026-10-10',Date.parse('2026-10-09T16:59:59Z')),0);
@@ -56,6 +56,10 @@ test('all published prompts enter the library, but the calendar starts empty and
  const saved=await x.marketing.saveSettings({enabled:false,start_date:'2026-10-10',send_time:'06:00',loop_campaign:true},'admin');
  assert.equal(saved.settings.loop_campaign,true);
  assert.equal(saved.settings.enabled,false);
+ assert.equal(saved.settings.delete_hours,24);
+ await assert.rejects(()=>x.marketing.saveSettings({delete_hours:37},'admin'),/1–36/);
+ await assert.rejects(()=>x.marketing.saveSettings({delete_hours:0},'admin'),/1–36/);
+ const edited=await x.marketing.saveSettings({delete_hours:18},'admin');assert.equal(edited.settings.delete_hours,18);
 });
 test('calendar saves references only to real published Member Area prompts',async()=>{
  const x=setup();
@@ -86,7 +90,7 @@ test('custom CTA is limited to verified HTTPS site and never Telegram in-chat QR
   assert.throws(()=>validateUrl(url),/tujuan|Tujuan/);
 });
 test('Free campaign reads live published prompt from Member Area and picks up edits',async()=>{
- const x=setup({gate:true,globalSend:true});
+ const x=setup({globalSend:true});
  await x.marketing.saveSettings({enabled:true,start_date:'2026-10-10',send_time:'06:00'},'admin');
  assert.match((await x.marketing.forFree(NOW)).reason,/Belum ada prompt/);
  await x.marketing.save({day:1,source:'scene_prompts',prompt_id:'p1'},'admin');
@@ -95,6 +99,16 @@ test('Free campaign reads live published prompt from Member Area and picks up ed
  assert.ok(chosen.prompt.marketing_offer.text.length>15);
  x.sources.get('p1').prompt_text='changed after scheduling';
  assert.equal((await x.marketing.forFree(NOW)).prompt.prompt_text,'changed after scheduling');
+});
+test('WIB send time holds delivery until scheduled clock, then releases one selected prompt',async()=>{
+ const x=setup({globalSend:true});
+ await x.marketing.saveSettings({enabled:true,start_date:'2026-10-10',send_time:'11:00'},'admin');
+ await x.marketing.save({day:1,source:'scene_prompts',prompt_id:'p1'},'admin');
+ const before=await x.marketing.forFree(NOW);
+ assert.equal(before.skip,true);
+ assert.match(before.reason,/Jam kirim/);
+ assert.equal(before.next_send_at,'2026-10-10T04:00:00.000Z');
+ assert.equal((await x.marketing.forFree(Date.parse(before.next_send_at))).prompt.$id,'p1');
 });
 test('new published prompts enter library but never schedule themselves or leak drafts',async()=>{
  const x=setup();
@@ -125,15 +139,18 @@ test('unpublished scheduled prompt is flagged for review instead of being silent
  assert.equal(view.stats.empty,364);
  assert.equal(view.stats.unscheduled,2);
 });
-test('backend and Admin both retain a mandatory server-off gate',()=>{
+test('backend and Admin share a single server safety gate and calendar control',()=>{
  const m=fs.readFileSync(new URL('../functions/activate-member/src/telegram/runtime.mjs',import.meta.url),'utf8');
  const d=fs.readFileSync(new URL('../assets/admin-marketing.js',import.meta.url),'utf8');
  const h=fs.readFileSync(new URL('../admin.html',import.meta.url),'utf8');
- assert.match(m,/TELEGRAM_MARKETING_ENABLED==='true'/);
+ assert.match(m,/TELEGRAM_SEND_ENABLED==='true'/);
+ assert.doesNotMatch(m,/TELEGRAM_MARKETING_ENABLED/);
  assert.match(h,/id="v-marketing"/);
  assert.match(h,/id="mktCalendar"/);
  assert.match(h,/id="mktEditOffer"/);
  assert.match(h,/id="mktLoop"/);
+ assert.match(h,/id="mktDeleteHours"/);
+ assert.doesNotMatch(h,/id="tgSettingsForm"/);
  assert.match(d,/addEventListener\('drop'/);
  assert.match(d,/request\('marketing-slot-save'/);
 });

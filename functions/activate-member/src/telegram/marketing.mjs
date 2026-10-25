@@ -13,7 +13,7 @@ export const PROMPT_LIBRARY='scene_prompts';
 const CTA_TYPES=new Set(['premium','member','url']);
 const BASE='https://promptional.vercel.app';
 const DEFAULT_OFFER='Suka prompt gratis hari ini? Buka seluruh koleksi PROMPTIONAL langsung di Member Area Premium. Bayar sekali melalui QRIS di website resmi, tanpa menunggu kiriman prompt Premium harian.';
-const DEFAULT_SETTINGS=Object.freeze({enabled:false,loop_campaign:false,start_date:'',send_time:'06:00',timezone:'Asia/Jakarta',default_offer:DEFAULT_OFFER,default_cta_label:'BUKA PREMIUM',default_cta_type:'premium',default_cta_url:''});
+const DEFAULT_SETTINGS=Object.freeze({enabled:false,loop_campaign:false,start_date:'',send_time:'06:00',delete_hours:24,timezone:'Asia/Jakarta',default_offer:DEFAULT_OFFER,default_cta_label:'BUKA PREMIUM',default_cta_type:'premium',default_cta_url:''});
 const slotId=day=>'telegram-marketing-'+String(day).padStart(3,'0');
 const trim=(v,max)=>String(v??'').trim().slice(0,max);
 const validDay=day=>{const n=Number(day);if(!Number.isInteger(n)||n<1||n>365)throw fail('Hari harus antara 1 dan 365.',400);return n};
@@ -33,9 +33,11 @@ function sanitizeSettings(input,old=DEFAULT_SETTINGS){
  }
  if(typeof input.enabled==='boolean')s.enabled=input.enabled;
  if(typeof input.loop_campaign==='boolean')s.loop_campaign=input.loop_campaign;
+ if(Object.hasOwn(input,'delete_hours'))s.delete_hours=Number(input.delete_hours);
  if(s.start_date!==''&&!/^\d{4}-\d{2}-\d{2}$/.test(s.start_date))throw fail('Tanggal mulai tidak valid.');
  if(s.start_date){const date=Date.parse(s.start_date+'T00:00:00Z');if(!Number.isFinite(date)||new Date(date).toISOString().slice(0,10)!==s.start_date)throw fail('Tanggal mulai tidak valid.');}
  if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(s.send_time))throw fail('Jam kirim WIB tidak valid.');
+ if(!Number.isInteger(s.delete_hours)||s.delete_hours<1||s.delete_hours>36)throw fail('Durasi hapus prompt harus antara 1–36 jam. Sisakan waktu untuk penghapusan oleh Telegram.');
  s.timezone='Asia/Jakarta';
  s.default_offer=trim(s.default_offer,850);
  telegramHtml(s.default_offer,{max:850});
@@ -99,7 +101,7 @@ export class Marketing{
  }
  async get(){
   const {settings,slots,library}=await this.calendar();
-  return {ok:true,settings,slots,library:library.map(p=>({source:PROMPT_LIBRARY,id:p.$id,title:p.title,category:p.category||'',preview_url:p.preview_url,summary:trim(p.prompt_text,145)})),stats:{filled:slots.filter(s=>!s.needs_review).length,empty:365-slots.length,target:365,published:library.length,scheduled:slots.length,unscheduled:library.length-new Set(slots.filter(s=>!s.needs_review).map(s=>s.prompt_id)).size,active:settings.enabled&&this.s.marketingEnabled,campaign_day:campaignDay(settings.start_date,this.s.now(),settings.loop_campaign)},server_gate:Boolean(this.s.marketingEnabled),note:'Perpustakaan selalu sinkron dengan Member Area. Hanya prompt yang diseret dan disimpan pada hari tertentu yang boleh dikirim; hari kosong tidak mengirim.'};
+  return {ok:true,settings,slots,library:library.map(p=>({source:PROMPT_LIBRARY,id:p.$id,title:p.title,category:p.category||'',preview_url:p.preview_url,summary:trim(p.prompt_text,145)})),stats:{filled:slots.filter(s=>!s.needs_review).length,empty:365-slots.length,target:365,published:library.length,scheduled:slots.length,unscheduled:library.length-new Set(slots.filter(s=>!s.needs_review).map(s=>s.prompt_id)).size,active:settings.enabled&&this.s.sendEnabled,campaign_day:campaignDay(settings.start_date,this.s.now(),settings.loop_campaign)},server_gate:Boolean(this.s.sendEnabled),note:'Hanya kalender Konten yang mengendalikan kiriman rutin. Perpustakaan tetap sinkron dengan Member Area. Hari kosong tidak mengirim.'};
  }
  async candidates({source=PROMPT_LIBRARY}={}){
   if(source!==PROMPT_LIBRARY)throw fail('Semua prompt aktif berasal dari Member Area.',400);
@@ -108,9 +110,10 @@ export class Marketing{
  }
  async saveSettings(input,actor){
   const prev=await this.config(),updated=sanitizeSettings(input,prev);
-  // Admin cannot arm a new sender just by toggling a form. Requires explicit server flag.
-  if(updated.enabled&&!this.s.marketingEnabled)throw fail('Jadwal tersimpan sebagai DRAF. Pengiriman perlu izin server terpisah.',409);
-  if(updated.enabled&&!prev.enabled){const system=await this.s.config();if(!this.s.sendEnabled||!system.enabled||system.paused||system.dry_run)throw fail('Aktifkan bot utama dan nonaktifkan dry-run setelah QA sebelum menjadwalkan.',409);}
+  // The calendar is the sole operator-facing send switch; the existing server
+  // permission and active main bot are non-negotiable transport safeguards.
+  if(updated.enabled&&!this.s.sendEnabled)throw fail('Izin kirim Telegram di server masih nonaktif. Kalender tetap DRAF.',409);
+  if(updated.enabled&&!prev.enabled){const bot=await this.s.main();if(!bot?.is_active)throw fail('Aktifkan bot utama sebelum mengaktifkan kalender.',409);}
   await this.s.store.putState('telegram-marketing-settings',updated,{kind:'marketing_settings',status:updated.enabled?'active':'draft',user_id:actor});
   return {ok:true,settings:updated};
  }
@@ -169,10 +172,12 @@ export class Marketing{
  }
  async forFree(now){
   const s=await this.config();
-  if(!this.s.marketingEnabled||!s.enabled)return {skip:true,reason:'Admin belum mengaktifkan jadwal konten Telegram',day:0};
+  if(!this.s.sendEnabled||!s.enabled)return {skip:true,reason:'Admin belum mengaktifkan jadwal konten Telegram',day:0};
   const day=campaignDay(s.start_date,now,s.loop_campaign);
   if(day<1)return {skip:true,reason:'Kampanye belum dimulai',day};
   if(day>365)return {skip:true,reason:'Kampanye 365 hari telah berakhir',day};
+  const sendAt=Date.parse(jakartaDay(now)+'T'+s.send_time+':00+07:00');
+  if(now<sendAt)return {skip:true,reason:'Jam kirim WIB belum tiba',day,next_send_at:new Date(sendAt).toISOString()};
   const {slots}=await this.calendar(),data=slots.find(s=>s.day===day);
   if(!data||data.needs_review)return {skip:true,reason:'Belum ada prompt tayang untuk hari '+day,day};
   const prompt=await this.s.store.get(PROMPT_LIBRARY,data.prompt_id);

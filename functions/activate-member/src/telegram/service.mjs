@@ -8,8 +8,8 @@ import {BotQris} from './bot-qris.mjs';
 import {listTelegramSales,listTelegramBuyers,resetSandboxBuyer} from './telegram-orders-admin.mjs';
 import {updateTelegramBuyer,deleteTelegramBuyer} from './telegram-sales-management.mjs';
 export class Service{
- constructor({store,telegram,key,now=()=>Date.now(),sendEnabled=false,webhookBase='https://promptional.vercel.app/api/telegram/webhook',verifyUser,verifyAdmin,verifyPaidAccess=async()=>false,marketingEnabled=false,qrisDeps={}}){
-  Object.assign(this,{store,telegram,key,now,sendEnabled,webhookBase,verifyUser,verifyAdmin,verifyPaidAccess,marketingEnabled});this.delivery=new Delivery(this);this.marketing=new Marketing(this);this.engagement=new Engagement(this);this.qris=new BotQris(this,qrisDeps);
+ constructor({store,telegram,key,now=()=>Date.now(),sendEnabled=false,webhookBase='https://promptional.vercel.app/api/telegram/webhook',verifyUser,verifyAdmin,verifyPaidAccess=async()=>false,qrisDeps={}}){
+  Object.assign(this,{store,telegram,key,now,sendEnabled,webhookBase,verifyUser,verifyAdmin,verifyPaidAccess});this.delivery=new Delivery(this);this.marketing=new Marketing(this);this.engagement=new Engagement(this);this.qris=new BotQris(this,qrisDeps);
  }
  async config(){return settings((await this.store.state('telegram-settings'))?.data||defaults)}
  token(bot){return unseal(bot.token_cipher,masterKey(this.key),'token:'+bot.$id)}
@@ -27,7 +27,7 @@ export class Service{
   return member;
  }
  async audit(actor,action,data={}){await this.store.putState(id('audit',random()),{action,...data},{kind:'audit',user_id:actor,status:'recorded',due_at:new Date(this.now()+30*DAY).toISOString()})}
- async requireSend(test=false){if(!this.sendEnabled)throw fail('Pengiriman Telegram belum diizinkan pada server.',503);if(!test){const s=await this.config();if(s.dry_run)throw fail('Mode uji coba aktif; pesan sungguhan tidak dikirim.',409)}}
+ async requireSend(){if(!this.sendEnabled)throw fail('Pengiriman Telegram belum diizinkan pada server.',503)}
  async admin(action,body,jwt){
   const actor=await this.verifyAdmin(jwt);await this.store.rate(actor.$id,'admin',this.now(),20);
   if(action==='overview')return this.overview();
@@ -62,7 +62,7 @@ export class Service{
   if(action==='marketing-test-send'){
     // Explicit admin action, cannot send to an arbitrary Telegram account:
     // receiver must have opted in and been authorized as tester for the active bot.
-    await this.requireSend(true);
+    await this.requireSend();
     const tg=numeric(body.telegram_id),bot=await this.main();
     if(!bot||!bot.is_active)throw fail('Bot utama belum aktif.',409);
     const tester=await this.store.state(id('tester',bot.$id,tg));
@@ -84,12 +84,7 @@ export class Service{
     await this.audit(actor.$id,action,{from:result.from,to:result.to});
     return result;
   }
-  if(action==='settings'){
-   const old=await this.config();const allowed=['enabled','paused','dry_run','premium_time','free_days','premium_days','delete_hours','term_days','batch_size'];const filtered=Object.fromEntries(allowed.filter(k=>k in body).map(k=>[k,body[k]]));const s=settings({...old,...filtered});
-   if(!this.sendEnabled&&(s.enabled||!s.paused||!s.dry_run))throw fail('Pengiriman belum diizinkan pada server. Pertahankan otomatisasi nonaktif, PAUSE, dan mode uji coba.',409);
-   if(s.enabled&&!s.paused&&!s.dry_run){await this.requireSend(true);if(!await this.main())throw fail('Pilih bot utama dengan webhook valid terlebih dahulu.')}
-   await this.store.putState('telegram-settings',s);await this.audit(actor.$id,action);return {ok:true,settings:s};
-  }
+  if(action==='settings')throw fail('Pengaturan pengiriman lama sudah ditutup. Gunakan Telegram → KONTEN → Pengaturan jadwal.',410);
   if(action==='save'){
    const key=masterKey(this.key),token=String(body.token||'').trim();
    if(!/^\d{5,20}:[A-Za-z0-9_-]{20,100}$/.test(token))throw fail('Format token Telegram tidak valid.');
@@ -134,7 +129,7 @@ export class Service{
   }
   if(action==='disable'||action==='delete'){
    if(action==='delete'){if(body.confirmation!=='HAPUS BOT')throw fail('Ketik HAPUS BOT untuk konfirmasi.');if((await this.store.list('telegram_deliveries',[['equal','bot_id',bot.$id]],1)).total)throw fail('Bot memiliki riwayat pesan. Nonaktifkan agar pesan tetap dapat dikelola.')}
-   const setting=await this.config();if(setting.main_bot_id===bot.$id)await this.store.putState('telegram-settings',{...setting,main_bot_id:null,paused:true});
+   const setting=await this.config();if(setting.main_bot_id===bot.$id)await this.store.putState('telegram-settings',{...setting,main_bot_id:null});
    await this.telegram.call(this.token(bot),'deleteWebhook',{drop_pending_updates:false});
    if(action==='delete'){if(body.confirmation!=='HAPUS BOT')throw fail('Ketik HAPUS BOT untuk konfirmasi.');const history=(await this.store.list('telegram_deliveries',[['equal','bot_id',bot.$id]],1)).total;
     if(history)throw fail('Bot memiliki riwayat pesan. Nonaktifkan agar token tetap tersedia untuk penghapusan pesan.');await this.store.remove('telegram_bots',bot.$id)
@@ -142,7 +137,7 @@ export class Service{
    await this.audit(actor.$id,action,{bot_id:bot.$id});return {ok:true};
   }
   if(['test-message','test-prompt','test-delete'].includes(action)){
-   await this.requireSend(true);const tg=numeric(body.telegram_id),tester=await this.store.state(id('tester',bot.$id,tg));if(!tester||tester.status!=='authorized')throw fail('Akun penguji belum diotorisasi.',403);
+   await this.requireSend();const tg=numeric(body.telegram_id),tester=await this.store.state(id('tester',bot.$id,tg));if(!tester||tester.status!=='authorized')throw fail('Akun penguji belum diotorisasi.',403);
    const member=await this.store.get('telegram_members',id('member',tg));if(!member)throw fail('Member tidak ditemukan.');
    if(action==='test-delete'){const row=await this.store.get('telegram_deliveries',String(body.delivery_id||''));if(!row||row.kind!=='test'||row.bot_id!==bot.$id||row.telegram_id!==tg)throw fail('Hanya pesan uji milik bot dan penguji ini yang dapat dihapus.',403);return this.delivery.remove(row)}
    const request=String(body.request_id||'');if(!/^[\w-]{16,64}$/.test(request))throw fail('Request ID pengujian wajib.');
@@ -215,8 +210,8 @@ export class Service{
   if(!member){if(cmd!=='/start')return {ok:true,ignored:true};try{member=await this.store.create('telegram_members',memberId,{telegram_id:identity.telegram_id,chat_id:identity.chat_id,first_name:identity.first_name,username:identity.username,plan:'free',is_active:true,joined_at:new Date(this.now()).toISOString(),delivery_day:0,next_send_at:new Date(this.now()).toISOString(),source:'telegram'}) ;fresh=true}catch(e){if(e.code!==409)throw e;member=await this.store.get('telegram_members',memberId)}}
   if(cmd==='/start')await this.store.putState(id('consent',botId,identity.telegram_id),{chat_id:identity.chat_id},{kind:'consent',bot_id:botId,telegram_id:identity.telegram_id,status:'allowed'});
   const consent=await this.consent(botId,identity.telegram_id);if(!consent||consent.status!=='allowed')return {ok:true,ignored:true};
-  if(cmd==='/start'&&(arg?.startsWith('link_')||arg?.startsWith('purchase_'))){try{member=arg.startsWith('purchase_')?await this.linkPurchase(member,arg.slice(9)):await this.link(member,arg.slice(5))}catch(e){if(this.sendEnabled&&!(await this.config()).dry_run)return this.delivery.text(member,bot,e.status?e.message:'Belum dapat menghubungkan akun. Buat link baru dari Member Area.',id('reply',botId,update.update_id),'reply');return {ok:true,link_failed:true}}}else member=await this.sync(member);
-  const setting=await this.config(),main=await this.main();if(!this.sendEnabled||setting.dry_run)return {ok:true,dry_run:true};
+  if(cmd==='/start'&&(arg?.startsWith('link_')||arg?.startsWith('purchase_'))){try{member=arg.startsWith('purchase_')?await this.linkPurchase(member,arg.slice(9)):await this.link(member,arg.slice(5))}catch(e){if(this.sendEnabled)return this.delivery.text(member,bot,e.status?e.message:'Belum dapat menghubungkan akun. Buat link baru dari Member Area.',id('reply',botId,update.update_id),'reply');return {ok:true,link_failed:true}}}else member=await this.sync(member);
+  const main=await this.main();if(!this.sendEnabled)return {ok:true,dry_run:true};
   const key=id('reply',botId,update.update_id);
   if(cmd==='/prompt'||cmd==='/start'){
    if(!main||main.$id!==botId)return this.delivery.text(member,bot,'Kamu sudah terdaftar di bot ini. Pengiriman rutin mengikuti bot utama yang dipilih admin.',key,'reply');
@@ -244,10 +239,10 @@ export class Service{
    const autoreply=await this.engagement.respond(member,bot,identity.text,key);
    if(autoreply)return autoreply;
   }
-  return this.delivery.text(member,bot,'Panduan PROMPTIONAL\n/start — daftar menerima prompt terjadwal\n/prompt — cek prompt gratis sesuai jadwal\n/premium — cara mendapatkan Member Area lengkap\n/status — status akun\n/bantuan — panduan\nKiriman Free hanya berasal dari kalender admin dan dihapus otomatis setelah 24 jam. Member Premium membuka seluruh koleksi langsung di website.'+(this.qris.enabled?'\n/beli — coba checkout QRIS sandbox\n/cek — cek status invoice':''),key,'reply');
+  return this.delivery.text(member,bot,'Panduan PROMPTIONAL\n/start — daftar menerima prompt terjadwal\n/prompt — cek prompt gratis sesuai jadwal\n/premium — cara mendapatkan Member Area lengkap\n/status — status akun\n/bantuan — panduan\nKiriman Free hanya berasal dari kalender admin dan dihapus otomatis sesuai durasi yang ditentukan admin. Member Premium membuka seluruh koleksi langsung di website.'+(this.qris.enabled?'\n/beli — coba checkout QRIS sandbox\n/cek — cek status invoice':''),key,'reply');
  }
  async scheduler({forceDry=false,budgetMs=20000}={}){
-  const start=this.now(),setting=await this.config(),dry=forceDry||setting.dry_run||!this.sendEnabled,bot=await this.main();
+  const start=this.now(),setting=await this.config(),campaign=await this.marketing.config(),dry=forceDry||!this.sendEnabled,bot=await this.main();
   if(!forceDry){const expired=await this.store.list('telegram_state',[['equal','kind',['rate','update','attempt','used','switch','run','link','audit']],['lessThanEqual','due_at',new Date(start).toISOString()]],20);for(const row of expired.rows)await this.store.remove('telegram_state',row.$id)}
   let deleted=0;
   if(!dry){
@@ -257,7 +252,9 @@ export class Service{
    await this.store.putState('telegram-delete-cursor',{cursor:deletions.rows.length?last:null},{kind:'cursor'});
   }
   if(!bot)return {ok:true,paused:true,deleted,reason:'Bot utama belum dipilih.'};
-  if((!setting.enabled||setting.paused)&&!forceDry)return {ok:true,paused:true,deleted};
+  // Only the new Admin → Telegram → Konten calendar may arm recurring sends.
+  // Deletion above intentionally runs even while this campaign is DRAF.
+  if(!campaign.enabled&&!forceDry)return {ok:true,paused:true,deleted,reason:'Kalender konten masih DRAF.'};
   // A per-minute global claim prevents overlapping scheduled executions.
   if(!dry&&!await this.store.claim(id('run',Math.floor(start/60000)),{kind:'run',status:'claimed',due_at:new Date(start+DAY).toISOString(),payload:'{}'}))return {ok:true,duplicate:true};
   const result={ok:true,dry_run:dry,due:0,sent:0,failed:0,deleted,reminders:0};
