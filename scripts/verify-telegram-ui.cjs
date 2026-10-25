@@ -10,7 +10,7 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   const page=await browser.newPage({viewport:{width,height:1000}}),errors=[],requests=[];page.on('pageerror',e=>errors.push(e.message));page.on('dialog',d=>d.type()==='prompt'?d.accept('HAPUS BOT'):d.accept());await local(page);await page.route('**/assets/vendor/appwrite-28.1.0.js',r=>r.fulfill({body:fixture,contentType:'application/javascript'}));
   let shouldFail=false,emptyMembers=true,sendEnabled=false;
   await page.route('**/api/telegram/manager',async r=>{const p=r.request().postDataJSON();requests.push({body:p,authorization:r.request().headers().authorization});if(shouldFail){shouldFail=false;return r.fulfill({status:503,json:{error:'Telegram belum dapat dihubungi.'}})}let data={ok:true};if(p.action==='overview')data={ok:true,bots:[bot],settings:{enabled:false,paused:true,dry_run:true,premium_time:'06:00',free_days:3,premium_days:1,delete_hours:24,term_days:365,batch_size:5,main_bot_id:bot.$id},stats:{users:4,free:2,premium:2,active:1,expired:1,today:3,sent:8,failed:1,deleted:2,blocked:1},errors:[{status:'uncertain',error:'Perlu diperiksa',at:'2026-10-09'}],members:emptyMembers?[]:[{telegram_id:'777',first_name:'Penguji'}],testers:[],prompts:[{id:'published',title:'Prompt asli'}],send_enabled:sendEnabled};if(p.action==='telegram-orders-list')data={ok:true,orders:[{id:'tg_'+'a'.repeat(32),channel:'bot',status:'activated',is_test:true,telegram_id:'777',display_name:'Penguji',telegram_username:'penguji',invoice_id:'SANDBOX-77',amount:199000,plan:'premium',paid_at:'2026-10-11T00:00:00Z',created_at:'2026-10-11T00:00:00Z',access_until:'2027-10-11T00:00:00Z'}],total:1,next_cursor:null};if(p.action==='telegram-buyers-list')data={ok:true,members:[{telegram_id:'777',first_name:'Penguji',username:'penguji',plan:'premium',is_active:true,appwrite_linked:true,premium_until:'2027-10-11T00:00:00Z',tester_authorized:false,can_reset:false}],total:1,next_cursor:null};if(p.action==='save')data={ok:true,bot};if(p.action==='prepare-switch')data={ok:true,confirmation:'one-use-confirmation',started_members:1};if(p.action==='test-message'||p.action==='test-prompt')data={ok:true,delivery_id:'test-delivery',message_ids:['101']};await r.fulfill({json:data})});
-  await page.goto('https://badaiprompt.vercel.app/admin');await page.waitForFunction(()=>!document.getElementById('loading').classList.contains('show'));await page.locator('[data-view=sales]').click();await page.waitForFunction(()=>document.getElementById('tgOrdersSummary').textContent.includes('1 dari 1'));assert.match(await page.locator('#tgOrdersList').innerText(),/SANDBOX-77/);assert.match(await page.locator('#tgBuyersList').innerText(),/Penguji/);assert.equal(await page.locator('[data-telegram-reset]').count(),0);await page.locator('[data-view=settings]').click();await page.locator('[data-settings-tab=telegram]').click();await page.waitForFunction(()=>document.getElementById('tgStats').children.length===10);assert.equal(await page.locator('#tgStats strong').first().innerText(),'4');assert.match(await page.locator('#tgBotInfo').innerText(),/Tersimpan terenkripsi/);assert.equal(await page.locator('#tgToken').inputValue(),'');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
+  await page.goto('https://badaiprompt.vercel.app/admin');await page.waitForFunction(()=>!document.getElementById('loading').classList.contains('show'));await page.locator('[data-view=marketing]').click();await page.locator('[data-tg-tab=bot]').click();await page.waitForFunction(()=>document.getElementById('tgStats').children.length===10);assert.equal(await page.locator('#tgStats strong').first().innerText(),'4');assert.match(await page.locator('#tgBotInfo').innerText(),/Tersimpan terenkripsi/);assert.equal(await page.locator('#tgToken').inputValue(),'');assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   assert.equal(await page.locator('#tgAuthorizeTester').isDisabled(),true);assert.equal(await page.locator('[data-tg-test=test-message]').isDisabled(),true);assert.match(await page.locator('#tgTesterHelp').innerText(),/Belum ada akun penguji/);assert.equal(await page.locator('#tgStartBot').getAttribute('href'),'https://t.me/TestBadaiBot');emptyMembers=false;await page.locator('#tgRefresh').click();await page.waitForFunction(()=>document.getElementById('tgTester').options.length===2);
   await page.screenshot({path:path.join(output,'telegram-admin-'+width+'.png'),fullPage:true});
   await page.locator('#tgToken').fill('123456:FAKE_TEST_TOKEN_DO_NOT_USE_1234567890');await page.locator('#tgBotForm button[type=submit]').click();await page.waitForFunction(()=>document.getElementById('tgStatus').textContent.includes('Bot tersimpan'));assert.equal(await page.locator('#tgToken').inputValue(),'');assert.equal(await page.evaluate(()=>Object.keys(localStorage).some(k=>/token|telegram/i.test(k))),false);
@@ -30,20 +30,24 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
  }
  // Marketing calendar: isolated browser simulation, no real messages or DB mutations.
  for(const width of [1280,390]){
-  const page=await browser.newPage({viewport:{width,height:1000}}),pageErrors=[],calls=[],slots=new Map();
+  const page=await browser.newPage({viewport:{width,height:1000}}),pageErrors=[],calls=[],slots=new Map([
+   [1,{day:1,source:'scene_prompts',prompt_id:'p1',title:'BP001 • Foto Editorial',automatic:true,offer_text:'Suka prompt ini? Buka semua prompt Premium Rp199.000.',cta_label:'BUKA PREMIUM',cta_type:'premium'}],
+   [2,{day:2,source:'scene_prompts',prompt_id:'p2',title:'BP002 • Poster Produk',automatic:true,offer_text:'Suka prompt ini? Buka semua prompt Premium Rp199.000.',cta_label:'BUKA PREMIUM',cta_type:'premium'}]
+  ]);
   page.on('pageerror',e=>pageErrors.push(e.message));page.on('dialog',dialog=>dialog.accept());await local(page);
   await page.route('**/assets/vendor/appwrite-28.1.0.js',r=>r.fulfill({body:fixture,contentType:'application/javascript'}));
   let marketingSettings={enabled:false,loop_campaign:false,start_date:'2026-10-10',send_time:'06:00',timezone:'Asia/Jakarta',
     default_offer:'Suka prompt ini? Buka semua prompt Premium Rp199.000.',default_cta_label:'BUKA PREMIUM',default_cta_type:'premium',default_cta_url:''};
+  const library=[
+   {source:'scene_prompts',id:'p1',title:'BP001 • Foto Editorial',category:'Foto',preview_url:'https://example.com/p1.jpg',summary:'Prompt visual pertama'},
+   {source:'scene_prompts',id:'p2',title:'BP002 • Poster Produk',category:'Bisnis',preview_url:'https://example.com/p2.jpg',summary:'Prompt visual kedua'}
+  ];
   await page.route('**/api/telegram/manager',async route=>{
    const body=route.request().postDataJSON();calls.push(body);
    let reply={ok:true};
    if(body.action==='overview')reply={ok:true,settings:{main_bot_id:'test-main-bot'},testers:[{bot_id:'test-main-bot',telegram_id:'778812345'}]};
    if(body.action==='marketing-test-send')reply={ok:true,status:'sent',test:true,day:body.day,delivery_id:'test_delivery'};
-   if(body.action==='marketing-get')reply={ok:true,settings:marketingSettings,slots:[...slots.values()],stats:{filled:slots.size,empty:365-slots.size,target:365,active:false,campaign_day:1},server_gate:false};
-   if(body.action==='marketing-candidates')reply={ok:true,total:2,next_cursor:null,rows:[
-    {source:'scene_prompts',id:'p1',title:'BP001 • Foto Editorial',category:'Foto',preview_url:'https://example.com/p1.jpg',summary:'Prompt visual pertama'},
-    {source:'scene_prompts',id:'p2',title:'BP002 • Poster Produk',category:'Bisnis',preview_url:'https://example.com/p2.jpg',summary:'Prompt visual kedua'}]};
+   if(body.action==='marketing-get')reply={ok:true,settings:marketingSettings,slots:[...slots.values()],library,stats:{filled:slots.size,empty:365-slots.size,target:365,published:library.length,active:false,campaign_day:1},server_gate:false};
    if(body.action==='marketing-slot-save'){const item={...body,title:body.prompt_id==='p1'?'BP001 • Foto Editorial':'BP002 • Poster Produk'};slots.set(body.day,item);reply={ok:true,slot:item}}
    if(body.action==='marketing-slot-delete')slots.delete(body.day);
    if(body.action==='marketing-slot-move'){
@@ -57,8 +61,9 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   await page.goto('https://badaiprompt.vercel.app/admin');
   await page.waitForFunction(()=>!document.getElementById('loading').classList.contains('show'));
   await page.locator('[data-view="marketing"]').click();
+  await page.locator('[data-tg-tab="content"]').click();
   await page.locator('#mktPromptList .mkt-prompt').first().waitFor();
-  assert.match(await page.locator('#mktStats').innerText(),/0\/365/);
+  assert.match(await page.locator('#mktStats').innerText(),/2\/365/);
   assert.equal(await page.locator('#mktEnabled option[value="true"]').evaluate(el=>el.disabled),true);
   await page.locator('[data-mkt-pick="scene_prompts:p1"]').click();
   await page.locator('[data-mkt-day="1"]').click();
@@ -86,7 +91,7 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   assert.equal(marketingSettings.enabled,false);
   await page.locator('#mktLoop').check();
   await page.locator('#mktSettingsForm button[type="submit"]').click();
-  await page.waitForFunction(()=>document.getElementById('mktNotice').textContent.includes('Pengaturan Marketing tersimpan'));
+  await page.waitForFunction(()=>document.getElementById('mktNotice').textContent.includes('Pengaturan Konten Telegram tersimpan'));
   assert.equal(marketingSettings.loop_campaign,true);
   assert.equal(marketingSettings.enabled,false);
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
