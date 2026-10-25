@@ -97,7 +97,7 @@ nav.telegram-nav{grid-template-columns:repeat(5,minmax(0,1fr))}
 .mkt-phone-jump button:focus-visible{outline:2px solid #e3653f;outline-offset:2px}
 .mkt-phone-messages{min-height:180px;max-height:560px;overflow:auto;overscroll-behavior:contain;padding:11px 9px 18px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin}
 .mkt-phone-messages>p{font-size:12px;color:#526a72;background:#fff9;padding:13px;border-radius:9px}
-.mkt-tg-message{max-width:96%;align-self:flex-start;background:#fff;color:#26333a;border-radius:4px 12px 12px 12px;overflow:hidden;box-shadow:0 2px 5px #2a4a5533;min-width:0}
+.mkt-tg-message{max-width:96%;align-self:flex-start;flex:0 0 auto;background:#fff;color:#26333a;border-radius:4px 12px 12px 12px;overflow:hidden;box-shadow:0 2px 5px #2a4a5533;min-width:0}
 .mkt-tg-photo{display:block;width:100%;max-height:300px;object-fit:contain;background:#f7f7f7}
 .mkt-tg-photo-fallback{min-height:120px;display:grid;place-items:center;background:#e9e7e9;color:#766b79;text-align:center;font-size:11px;padding:12px}
 .mkt-tg-text{font-size:12px;line-height:1.55;padding:11px 12px;white-space:pre-wrap;overflow-wrap:anywhere;color:#25323a}
