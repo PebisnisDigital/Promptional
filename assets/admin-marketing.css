@@ -79,15 +79,39 @@ nav.telegram-nav{grid-template-columns:repeat(5,minmax(0,1fr))}
 .mkt-editor[hidden]{display:none}
 .mkt-editor-preview{border:1px solid #eedcd4;background:#fff7f4;border-radius:8px;padding:12px;margin:11px 0;font-size:12px;color:#9c4722;font-weight:700}
 .mkt-editor label{margin:11px 0}
-.mkt-mock-chat{margin-top:14px;padding:15px;border-radius:11px;background:#17151b;color:#fff}
-.mkt-mock-chat b{font-size:11px;color:#ffbc9f}
-.mkt-mock-chat p{font-size:12px;line-height:1.65;padding:9px;background:#302831;border-radius:7px;white-space:pre-wrap;overflow-wrap:anywhere;margin:10px 0}
-.mkt-mock-cta{display:block;font-size:11px;font-weight:700;text-align:center;padding:12px;background:#e6703e;border-radius:8px}
-.mkt-mock-chat small{display:block;color:#b5a7b2;margin-top:10px;font-size:10px}
+.mkt-preview-review{margin-top:20px;background:linear-gradient(145deg,#15191f,#24212a);border-radius:14px;padding:18px;color:#f9f8fa;min-width:0}
+.mkt-preview-heading{display:flex;justify-content:space-between;align-items:start;gap:14px;margin-bottom:15px}
+.mkt-preview-heading .eyebrow{color:#fdab82;font-size:10px;font-weight:850}
+.mkt-preview-heading h3{font-size:19px;letter-spacing:-.04em;line-height:1.35;margin:4px 0 5px;color:#fff}
+.mkt-preview-heading p{font-size:11px;line-height:1.6;color:#c8c5ce;max-width:490px;margin:0}
+.mkt-preview-safe{font-size:9px;color:#b1f3d0;white-space:nowrap;border-radius:20px;padding:7px 9px;background:#21634466;border:1px solid #5cb38a55;font-weight:850;letter-spacing:.04em}
+.mkt-preview-layout{display:grid;grid-template-columns:minmax(0,355px) minmax(0,1fr);gap:19px;align-items:start;justify-content:center}
+.mkt-phone{width:100%;max-width:355px;margin:0 auto;border:7px solid #353640;background:#dceaf0;border-radius:28px;overflow:hidden;box-shadow:0 14px 35px #0006;box-sizing:border-box}
+.mkt-phone-top{display:flex;gap:10px;align-items:center;min-height:62px;padding:9px 13px;background:#fff;color:#292f33;box-shadow:0 2px 8px #3d667019}
+.mkt-phone-back{font-size:32px;color:#6a9eae;line-height:1}.mkt-phone-avatar{height:35px;width:35px;border-radius:50%;flex:0 0 35px;background:linear-gradient(135deg,#101014,#f47748);display:grid;place-items:center;color:#fff;font-size:15px;font-weight:900}
+.mkt-phone-top strong{display:block;font-size:12px;letter-spacing:-.01em;color:#1b2024}.mkt-phone-top small{display:block;color:#69a0ac;font-size:10px;margin-top:3px}.mkt-phone-menu{margin-left:auto;color:#778790;font-size:22px}
+.mkt-phone-date{text-align:center;font-size:10px;background:#b7cbd2;color:#394f59;width:max-content;max-width:94%;margin:12px auto 6px;border-radius:8px;padding:5px 10px;font-weight:800}
+.mkt-phone-messages{min-height:180px;max-height:560px;overflow:auto;overscroll-behavior:contain;padding:11px 9px 18px;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin}
+.mkt-phone-messages>p{font-size:12px;color:#526a72;background:#fff9;padding:13px;border-radius:9px}
+.mkt-tg-message{max-width:96%;align-self:flex-start;background:#fff;color:#26333a;border-radius:4px 12px 12px 12px;overflow:hidden;box-shadow:0 2px 5px #2a4a5533;min-width:0}
+.mkt-tg-photo{display:block;width:100%;max-height:300px;object-fit:contain;background:#f7f7f7}
+.mkt-tg-photo-fallback{min-height:120px;display:grid;place-items:center;background:#e9e7e9;color:#766b79;text-align:center;font-size:11px;padding:12px}
+.mkt-tg-text{font-size:12px;line-height:1.55;padding:11px 12px;white-space:pre-wrap;overflow-wrap:anywhere;color:#25323a}
+.mkt-tg-text code,.mkt-tg-text pre{font:11px/1.6 ui-monospace,SFMono-Regular,Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;margin:0}
+.mkt-tg-text pre{padding:8px;background:#f0f2f3;border-radius:6px;max-width:100%;box-sizing:border-box}
+.mkt-tg-message .mkt-tg-caption{padding:10px 12px;font-size:12px;line-height:1.5;overflow-wrap:anywhere}
+.mkt-tg-footer{text-align:right;color:#95a4a9;font-size:9px;padding:0 10px 6px}
+.mkt-tg-button{background:#fff;color:#2d83b5;border-top:1px solid #ebeff2;text-decoration:none;display:block;text-align:center;padding:11px 6px;font-size:11px;font-weight:850;overflow-wrap:anywhere}
+.mkt-tg-button[aria-disabled="true"]{opacity:.55;pointer-events:none}
+.mkt-phone-input{height:37px;background:#fff;border-top:1px solid #d0dbe0;color:#9ca8af;display:flex;align-items:center;gap:10px;padding:0 14px;font-size:11px}.mkt-phone-input span:last-child{margin-left:auto;color:#70a7b8;font-size:18px}
+.mkt-preview-audit{background:#292e36;border:1px solid #424550;padding:15px;border-radius:12px;min-width:0}.mkt-preview-audit h4{font-size:12px;letter-spacing:.07em;color:#fcbb9b;margin:0 0 12px}
+.mkt-preview-check{padding:10px 0;border-bottom:1px solid #454853;font-size:11px;line-height:1.6}.mkt-preview-check:last-child{border-bottom:0}.mkt-preview-check b{display:flex;align-items:start;gap:7px;color:#f5f4f5;font-size:11px}.mkt-preview-check p{font-size:11px;margin:3px 0 0 21px;color:#c0bec8;line-height:1.6;overflow-wrap:anywhere}.mkt-preview-check[data-level="warning"] b{color:#ffcb82}.mkt-preview-check[data-level="error"] b{color:#ff9494}
+.mkt-preview-disclaimer{font-size:10px;color:#c5c0ca;line-height:1.7;margin:14px 0}.mkt-preview-audit>.btn{min-height:39px;font-size:10px}
 html:has(#v-marketing.on){scroll-padding-top:110px}
 @media(max-width:950px){.mkt-workspace{grid-template-columns:1fr}.mkt-calendar-grid{grid-template-columns:repeat(6,minmax(0,1fr))}.mkt-prompt-list{max-height:400px}}
-@media(max-width:700px){.marketing-view{padding:0}.marketing-view .title h1{font-size:24px}.mkt-calendar-grid{grid-template-columns:repeat(5,minmax(0,1fr))}.mkt-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.mkt-fields,.mkt-fields-three{grid-template-columns:1fr 1fr}.mkt-fields label:nth-child(3){grid-column:1/-1}.mkt-caption{white-space:normal}nav.telegram-nav button{font-size:9px;padding-inline:0}}
+@media(max-width:700px){.marketing-view{padding:0}.marketing-view .title h1{font-size:24px}.mkt-calendar-grid{grid-template-columns:repeat(5,minmax(0,1fr))}.mkt-stats{grid-template-columns:repeat(2,minmax(0,1fr))}.mkt-fields,.mkt-fields-three{grid-template-columns:1fr 1fr}.mkt-fields label:nth-child(3){grid-column:1/-1}.mkt-caption{white-space:normal}nav.telegram-nav button{font-size:9px;padding-inline:0}.mkt-preview-layout{grid-template-columns:1fr}.mkt-preview-audit{max-width:100%}}
 @media(max-width:450px){.mkt-calendar-grid{grid-template-columns:repeat(4,minmax(0,1fr))}.mkt-calendar-toolbar{grid-template-columns:39px minmax(0,1fr) 39px}.mkt-display{grid-column:1/-1;text-align:center}.mkt-day{height:79px}.mkt-schedule,.mkt-calendar-panel,.mkt-library-panel,.mkt-editor{padding:12px}.mkt-fields,.mkt-fields-three{grid-template-columns:1fr}.mkt-fields label:nth-child(3){grid-column:auto}.mkt-stats{gap:6px}nav.telegram-nav button{font-size:8px}}
+@media(max-width:450px){.mkt-preview-review{padding:12px}.mkt-preview-heading{flex-wrap:wrap}.mkt-preview-heading h3{font-size:17px}.mkt-phone{border-width:5px;border-radius:20px}}
 @media(prefers-reduced-motion:reduce){.mkt-day,.mkt-prompt,.mkt-library-count{transition:none!important;animation:none!important}}
 
 .mkt-loop{font-size:12px;font-weight:700;display:flex;align-items:center;gap:9px;margin:10px 0;color:#66505e}

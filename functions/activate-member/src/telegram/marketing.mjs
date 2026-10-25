@@ -5,7 +5,7 @@ export const contentHash=p=>createHash('sha256').update(String(p?.prompt_text||'
 export function previewReady(p){return p?.is_published===true&&Boolean(p.prompt_text?.trim())}
 import {fail} from './security.mjs';
 import {telegramHtml} from './engagement.mjs';
-import {DAY, jakartaDay} from './policy.mjs';
+import {DAY, jakartaDay, promptChunks} from './policy.mjs';
 
 // This is the same table read by member.html and edited by the admin prompt library.
 // The old `prompts` collection contains text-only UMKM templates, not member gallery items.
@@ -107,6 +107,16 @@ export class Marketing{
   if(source!==PROMPT_LIBRARY)throw fail('Semua prompt aktif berasal dari Member Area.',400);
   const library=await this.published();
   return {ok:true,rows:library.map(p=>({source,id:p.$id,title:p.title,category:p.category||'',preview_url:p.preview_url,summary:trim(p.prompt_text,145)})),total:library.length,next_cursor:null};
+ }
+ async previewContent({source=PROMPT_LIBRARY,prompt_id}={}){
+  const promptId=String(prompt_id||'');
+  if(source!==PROMPT_LIBRARY||!promptId||promptId.length>80)throw fail('Pilih prompt valid dari Member Area.',400);
+  const prompt=await this.s.store.get(PROMPT_LIBRARY,promptId);
+  if(!previewReady(prompt))throw fail('Prompt ini tidak lagi diterbitkan atau teksnya kosong. Periksa sebelum menjadwalkan.',409);
+  const content=String(prompt.prompt_text);
+  // Use the very same HTML chunks that Delivery.prompt sends to Telegram.
+  // This admin-only read never creates a delivery, alters a slot, or calls Telegram.
+  return {ok:true,prompt:{id:prompt.$id,title:String(prompt.title||'Prompt PROMPTIONAL'),preview_url:String(prompt.preview_url||''),caption:String(prompt.title||'Prompt PROMPTIONAL').slice(0,900),fallback_title:String(prompt.title||'Prompt PROMPTIONAL').slice(0,200),chunks:promptChunks(content),length:[...content].length}};
  }
  async saveSettings(input,actor){
   const prev=await this.config(),updated=sanitizeSettings(input,prev);

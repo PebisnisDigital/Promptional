@@ -27,6 +27,9 @@ test('Bot and 365-day Content controls stay wired, with adjustable daily interva
  assert.doesNotMatch(html,/id="tgSettingsForm"/);
  assert.match(manager,/querySelector\('\[data-view="marketing"\]'\)/);
  assert.match(marketing,/querySelector\('\[data-tg-tab="content"\]'\)/);
+ for(const id of ['mktPreviewMessages','mktPreviewChecks','mktPreviewReload'])assert.ok(html.includes('id="'+id+'"'));
+ assert.match(marketing,/request\('marketing-preview'/);
+ assert.match(api,/'marketing-preview'/);
 });
 test('Broadcast requires separate draft, explicit send, throttling, opt-in and pause',()=>{
  for(const id of ['tgBroadcastForm','tgBroadcastConfirm','tgBroadcastSend','tgBroadcastPause','tgBroadcastPreview'])assert.ok(html.includes('id="'+id+'"'));

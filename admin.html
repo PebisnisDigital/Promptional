@@ -51,7 +51,7 @@ main{padding:16px}.view{display:none}.view.on{display:block}.title{display:flex;
 
 <link rel="stylesheet" href="/assets/admin-ui.css?v=promptional-1">
 <link rel="stylesheet" href="/assets/telegram-manager.css">
-<link rel="stylesheet" href="/assets/admin-marketing.css?v=promptional-1">
+<link rel="stylesheet" href="/assets/admin-marketing.css?v=telegram-preview-1">
 <link rel="stylesheet" href="/assets/admin-telegram-tabs.css?v=2">
 <style>/* PROMPTIONAL identity */ .brand{letter-spacing:-.05em}.brand b{color:#ff6b35}</style>
 </head>
@@ -333,7 +333,7 @@ main{padding:16px}.view{display:none}.view.on{display:block}.title{display:flex;
   <div class="mkt-content-heading"><div><span class="eyebrow">1 · SATU PERPUSTAKAAN PROMPT</span><h2>Terbit di Member Area → Tersedia di Telegram</h2><p>Prompt baru otomatis masuk perpustakaan, tetapi TIDAK dikirim sebelum Teh menjadwalkannya secara manual.</p></div></div>
   <div class="mkt-workspace">
     <section class="mkt-calendar-panel" aria-labelledby="mktCalendarTitle">
-      <div class="mkt-panel-header"><div><span class="eyebrow">JADWAL PILIHAN ADMIN</span><h2 id="mktCalendarTitle">Kalender 365 Hari</h2><p>Seret prompt ke hari pilihan. Kartu berpindah dari perpustakaan ke kalender; hari kosong tidak mengirim pesan.</p></div><span id="mktSelection" class="mkt-selection">Belum memilih prompt</span></div>
+      <div class="mkt-panel-header"><div><span class="eyebrow">JADWAL PILIHAN ADMIN</span><h2 id="mktCalendarTitle">Kalender 365 Hari</h2><p>Seret prompt ke hari pilihan. <strong>Ketuk hari yang terisi untuk melihat preview Telegram lengkap</strong> dan memperbaiki pesannya sebelum kirim.</p></div><span id="mktSelection" class="mkt-selection">Belum memilih prompt</span></div>
       <div class="mkt-calendar-toolbar">
         <button type="button" class="btn dark sm" id="mktPrev" aria-label="30 hari sebelumnya">‹</button>
         <select id="mktPage" aria-label="Bagian kalender"></select>
@@ -362,7 +362,18 @@ main{padding:16px}.view{display:none}.view.on{display:block}.title{display:flex;
        <label>URL TUJUAN<input id="mktEditUrl" type="url" placeholder="https://promptional.vercel.app/"></label>
       </div>
       <div class="mkt-actions"><button type="submit" class="btn pink">SIMPAN JADWAL HARI</button><button type="button" id="mktDeleteSlot" class="btn dark">KOSONGKAN HARI</button></div>
-      <div class="mkt-mock-chat"><b>PREVIEW CHAT TELEGRAM</b><p id="mktMockContent"></p><p id="mktMockOffer"></p><span id="mktMockButton" class="mkt-mock-cta">BUKA PREMIUM →</span><small>Simulasi teks saja; tidak mengirim pesan.</small></div>
+      <section class="mkt-preview-review" aria-labelledby="mktPreviewTitle">
+        <div class="mkt-preview-heading"><div><span class="eyebrow">PREVIEW KIRIMAN SEBENARNYA</span><h3 id="mktPreviewTitle">Begini tampilan di Telegram member</h3><p>Gambar, isi prompt lengkap, upselling, dan tombol mengikuti konten pilihan. Perubahan teks di atas langsung terlihat di sini.</p></div><span class="mkt-preview-safe">● HANYA PREVIEW</span></div>
+        <div class="mkt-preview-layout">
+          <div class="mkt-phone" aria-label="Simulasi percakapan Telegram">
+            <div class="mkt-phone-top"><span class="mkt-phone-back">‹</span><span class="mkt-phone-avatar">P</span><div><strong>PROMPTIONAL BOT</strong><small>bot • simulasi penerimaan</small></div><span class="mkt-phone-menu">⋮</span></div>
+            <div class="mkt-phone-date" id="mktPreviewDate">Hari pilihan</div>
+            <div class="mkt-phone-messages" id="mktPreviewMessages" aria-live="polite"><p>Memuat isi prompt lengkap…</p></div>
+            <div class="mkt-phone-input"><span>⌑</span><span>Message</span><span>➤</span></div>
+          </div>
+          <div class="mkt-preview-audit"><h4>PERIKSA SEBELUM KIRIM</h4><div id="mktPreviewChecks" role="status">Pilih prompt yang akan dijadwalkan.</div><p class="mkt-preview-disclaimer">Ini bukan pesan sungguhan. Tampilan akhir dapat sedikit berbeda menurut HP dan versi Telegram. Jika gambar gagal diambil Telegram, bot mengirim judul sebagai teks.</p><button class="btn dark" type="button" id="mktPreviewReload">MUAT ULANG PREVIEW</button></div>
+        </div>
+      </section>
     </form>
   </section>
 
@@ -1086,7 +1097,7 @@ boot();
 
 <script src="/assets/telegram-manager.js?v=2"></script>
 
-<script src="/assets/admin-marketing.js?v=2"></script>
+<script src="/assets/admin-marketing.js?v=telegram-preview-1"></script>
 <script src="/assets/admin-telegram-tabs.js?v=2"></script>
 <script src="/assets/workspace-ui.js?v=2"></script>
 </body>

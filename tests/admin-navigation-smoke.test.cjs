@@ -44,7 +44,7 @@ test('marketing is dedicated to Telegram content, with scheduling, preview and t
  assert.match(marketing,/1 · SATU PERPUSTAKAAN PROMPT/);
  assert.doesNotMatch(marketing,/id="mktSource"/);
  assert.match(marketing,/2 · JADWAL & PENGUJIAN/);
- for(const id of ['mktSettingsForm','mktTestForm','mktCalendar','mktPromptList','mktEditForm','mktMockContent']){
+ for(const id of ['mktSettingsForm','mktTestForm','mktCalendar','mktPromptList','mktEditForm','mktPreviewMessages','mktPreviewChecks']){
   assert.match(marketing,new RegExp('id="'+id+'"'));
  }
  assert.match(marketJs,/marketing-slot-save/);

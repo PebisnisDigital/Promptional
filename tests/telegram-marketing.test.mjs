@@ -73,6 +73,20 @@ test('calendar saves references only to real published Member Area prompts',asyn
  await assert.rejects(()=>x.marketing.save({day:2,source:'scene_prompts',prompt_id:'p1'},'admin'),/sudah ada di hari lain/);
  await assert.rejects(()=>x.marketing.save({day:2,source:'scene_prompts',prompt_id:'missing'},'admin'),/tayang/);
 });
+test('admin preview uses actual escaped Telegram chunks without sending or changing calendar',async()=>{
+ const x=setup();x.sources.get('p1').prompt_text='Perintah AI <produk> & hasil akhir';
+ const writesBefore=x.changes.length;
+ const content=await x.marketing.previewContent({source:'scene_prompts',prompt_id:'p1'});
+ assert.equal(content.prompt.id,'p1');
+ assert.equal(content.prompt.caption,'Contoh p1');
+ assert.equal(content.prompt.preview_url,'https://example.com/p1.webp');
+ assert.deepEqual(content.prompt.chunks,['<pre>Perintah AI &lt;produk&gt; &amp; hasil akhir</pre>']);
+ assert.equal(content.prompt.length,[...'Perintah AI <produk> & hasil akhir'].length);
+ assert.equal(x.changes.length,writesBefore);
+ await assert.rejects(()=>x.marketing.previewContent({source:'prompts',prompt_id:'p1'}),/Member Area/);
+ x.sources.get('p2').is_published=false;
+ await assert.rejects(()=>x.marketing.previewContent({prompt_id:'p2'}),/tidak lagi diterbitkan/);
+});
 test('moving a calendar slot swaps atomically and clears source for empty target',async()=>{
  const x=setup();for(const [day,id] of [[1,'p1'],[2,'p2'],[3,'p3']])await x.marketing.save({day,source:'scene_prompts',prompt_id:id},'admin');
  await x.marketing.move(1,2,'admin');
