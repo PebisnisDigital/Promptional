@@ -49,6 +49,16 @@ test('without a manually assigned day, START and /prompt cannot send any library
  assert.equal(run.skipped,1);
  assert.equal(f.telegram.calls.filter(c=>c.method==='sendPhoto').length,0);
 });
+test('Telegram preview admin action reads exact published content without sending a message',async()=>{
+ const f=await fixture(),callsBefore=f.telegram.calls.length,deliveriesBefore=(await f.store.list('telegram_deliveries')).total;
+ const result=await f.s.admin('marketing-preview',{source:'scene_prompts',prompt_id:'published'},'admin-session');
+ assert.equal(result.prompt.title,'Prompt asli');
+ assert.deepEqual(result.prompt.chunks,['<pre>Teks asli &lt;tag&gt; &amp; karakter 😀</pre>']);
+ assert.equal(f.telegram.calls.length,callsBefore);
+ assert.equal((await f.store.list('telegram_deliveries')).total,deliveriesBefore);
+ await assert.rejects(f.s.admin('marketing-preview',{source:'scene_prompts',prompt_id:'published'},'not-an-admin'),e=>e.status===403);
+ await assert.rejects(f.s.admin('marketing-preview',{source:'scene_prompts',prompt_id:'draft'},'admin-session'),e=>e.status===409);
+});
 test('a disabled server send gate never falls back to unscheduled library rotation',async()=>{
  const f=await fixture();f.s.sendEnabled=false;
  const memberId=id('member',777);

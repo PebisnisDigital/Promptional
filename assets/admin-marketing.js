@@ -9,6 +9,7 @@
   return date.toLocaleDateString('id-ID',{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'});
  };
   let state=null,loaded=false,busy=false,page=0,selectedPrompt=null,selectedDay=null,editing=null,candidates=[],draggingSlotDay=null;
+  const previewCache=new Map();let previewTicket=0,previewContent=null,previewError='';
  async function request(action,body={}){
   const {jwt}=await account.createJWT();
   const response=await fetch('/api/telegram/manager',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json',authorization:'Bearer '+jwt},body:JSON.stringify({action,...body}),cache:'no-store'});
@@ -157,7 +158,7 @@
   editing=selectedPrompt||slot||null;
   renderCalendar();
   if(!editing){
-   $('mktEditor').hidden=true;
+   $('mktEditor').hidden=true;previewTicket++;previewContent=null;previewError='';
    notice('Hari '+day+' kosong. Pilih prompt dari perpustakaan terlebih dahulu.');
    return;
   }
@@ -169,7 +170,7 @@
   $('mktEditType').value=selectedPrompt?state.settings.default_cta_type:(slot?.cta_type||state.settings.default_cta_type);
   $('mktEditUrl').value=selectedPrompt?state.settings.default_cta_url:(slot?.cta_url||state.settings.default_cta_url);
   $('mktDeleteSlot').disabled=!slot;
-  refreshMock();
+  previewContent=null;previewError='';renderPreview();void loadPreview();
   $('mktEditor').scrollIntoView({behavior:'smooth',block:'nearest'});
  }
  async function assignPrompt(day,prompt){
@@ -200,11 +201,69 @@
    notice('Prompt hari '+day+' kembali ke perpustakaan. Hari tersebut sekarang kosong.','success');
   });
  }
- function refreshMock(){
-  $('mktMockContent').textContent='🖼 '+(editing?.title||'PROMPT')+'\n\nIsi prompt lengkap yang dipilih dari Member Area akan dikirim terlebih dahulu.';
-  $('mktMockOffer').textContent=$('mktEditOffer').value+'\n\nPesan gratis dihapus setelah '+Number($('mktDeleteHours')?.value||24)+' jam (sesuai Pengaturan jadwal).';
-  $('mktMockButton').textContent=($('mktEditLabel').value||'BUKA PREMIUM')+' ↗';
-  $('mktEditUrl').disabled=$('mktEditType').value!=='url';
+ function telegramMarkup(raw){
+  // Show Telegram-supported formatting while keeping draft admin input inert.
+  // Unsupported HTML is escaped instead of being interpreted by the browser.
+  const source=String(raw||''),tokens=/(<\/?(?:b|i|u|s|code)>|<a href="https:\/\/[^"<>]+">|<\/a>)/gi;
+  let result='',offset=0;
+  for(const match of source.matchAll(tokens)){
+   result+=escape(source.slice(offset,match.index));
+   const tag=match[0],anchor=tag.match(/^<a href="([^"]+)">$/i);
+   if(anchor){try{const u=new URL(anchor[1]);if(u.protocol!=='https:'||u.username||u.password||u.port)throw Error('unsafe');result+='<a href="'+escape(u.href)+'" target="_blank" rel="noopener noreferrer">'}catch{result+=escape(tag)}}
+   else result+=tag;
+   offset=match.index+tag.length;
+  }
+  return result+escape(source.slice(offset));
+ }
+ function previewDestination(){
+  const type=$('mktEditType').value;
+  if(type==='premium')return 'https://promptional.vercel.app/beli-premium.html';
+  if(type==='member')return 'https://promptional.vercel.app/member';
+  try{const u=new URL($('mktEditUrl').value);if(u.protocol!=='https:'||u.username||u.password||u.port||!['promptional.vercel.app','badaiprompt.vercel.app'].includes(u.hostname))return '';return u.href}catch{return ''}
+ }
+ async function loadPreview(force=false){
+  const chosen=editing,identifier=chosen?.id||chosen?.prompt_id;
+  if(!identifier)return;
+  const ticket=++previewTicket;
+  if(!force&&previewCache.has(identifier)){
+   previewContent=previewCache.get(identifier);previewError='';renderPreview();return;
+  }
+  previewContent=null;previewError='';renderPreview();
+  try{
+   const answer=await request('marketing-preview',{source:'scene_prompts',prompt_id:identifier});
+   previewCache.set(identifier,answer.prompt);
+   if(ticket!==previewTicket)return;
+   previewContent=answer.prompt;previewError='';renderPreview();
+  }catch(e){if(ticket!==previewTicket)return;previewContent=null;previewError=e.message||'Gagal memuat preview';renderPreview()}
+ }
+ function renderPreview(){
+  const destination=previewDestination(),hours=Number($('mktDeleteHours').value),offer=$('mktEditOffer').value,label=$('mktEditLabel').value.trim(),type=$('mktEditType').value;
+  $('mktEditUrl').disabled=type!=='url';
+  $('mktPreviewDate').textContent='HARI '+(selectedDay||'—')+' • '+dayName(selectedDay||1)+' • '+(state?.settings?.send_time||'06:00')+' WIB';
+  const messages=$('mktPreviewMessages'),checks=$('mktPreviewChecks');
+  if(!previewContent){messages.innerHTML='<p>'+escape(previewError||'Memuat gambar dan isi prompt lengkap dari Member Area…')+'</p>';checks.innerHTML='<div class="mkt-preview-check" data-level="'+(previewError?'error':'warning')+'"><b>'+(previewError?'✕ Preview tidak tersedia':'◷ Mengambil konten asli')+'</b><p>'+escape(previewError||'Sumber prompt sedang diperiksa. Tidak ada pesan yang dikirim.')+'</p></div>';return}
+  const p=previewContent,photo=/^https:\/\//i.test(p.preview_url||''),chunks=Array.isArray(p.chunks)?p.chunks:[],safeChunks=chunks.map(chunk=>/^<pre>[\s\S]*<\/pre>$/.test(chunk)?chunk:'<pre>'+escape(chunk)+'</pre>');
+  const headline=photo?'<div class="mkt-tg-message"><img class="mkt-tg-photo" src="'+escape(p.preview_url)+'" alt="Preview gambar '+escape(p.title)+'" loading="lazy" referrerpolicy="no-referrer"><div class="mkt-tg-caption">'+escape(p.caption)+'</div><div class="mkt-tg-footer">'+escape(state.settings.send_time)+' ✓</div></div>':'<div class="mkt-tg-message"><div class="mkt-tg-text">'+escape(p.fallback_title)+'</div><div class="mkt-tg-footer">'+escape(state.settings.send_time)+' ✓</div></div>';
+  const promptBubbles=safeChunks.map(chunk=>'<div class="mkt-tg-message"><div class="mkt-tg-text">'+chunk+'</div><div class="mkt-tg-footer">'+escape(state.settings.send_time)+' ✓</div></div>').join('');
+  const deletion=Number.isInteger(hours)&&hours>=1&&hours<=36?hours:'[atur durasi]';
+  const offerText=offer+'\n\nPesan gratis akan dihapus setelah '+deletion+' jam. Prompt Free berikutnya sesuai kalender harian admin.';
+  const upsell='<div class="mkt-tg-message"><div class="mkt-tg-text">'+telegramMarkup(offerText)+'</div>'+(destination&&label?'<a class="mkt-tg-button" href="'+escape(destination)+'" target="_blank" rel="noopener noreferrer">'+escape(label)+' ↗</a>':'<span class="mkt-tg-button" aria-disabled="true">'+escape(label||'TOMBOL CTA BELUM LENGKAP')+'</span>')+'<div class="mkt-tg-footer">'+escape(state.settings.send_time)+' ✓</div></div>';
+  messages.innerHTML=headline+promptBubbles+upsell;
+  const image=messages.querySelector('.mkt-tg-photo');if(image)image.addEventListener('error',()=>{
+   const fallback=document.createElement('div');fallback.className='mkt-tg-photo-fallback';fallback.textContent='Gambar tidak berhasil dimuat di preview. Periksa URL gambar.';image.replaceWith(fallback);
+   const audit=checks.querySelectorAll('.mkt-preview-check')[1];if(audit){audit.dataset.level='warning';audit.querySelector('b').textContent='! Gambar gagal dimuat';audit.querySelector('p').textContent='Pastikan URL gambar HTTPS dapat dibuka secara publik agar Telegram bisa mengambil foto.'}
+  },{once:true});
+  const slot=slots().get(selectedDay),isAssigned=Boolean(slot&&slot.prompt_id===p.id&&!selectedPrompt);
+  const unchanged=isAssigned&&slot.offer_text===offer&&slot.cta_label===label&&slot.cta_type===type&&(slot.cta_url||'')===$('mktEditUrl').value;
+  const checksList=[
+   {level:unchanged?'ok':'warning',title:unchanged?'✓ Konten sesuai jadwal tersimpan':'! Ada perubahan belum disimpan',detail:unchanged?'Hari '+selectedDay+' • '+dayName(selectedDay):'Klik SIMPAN JADWAL HARI agar isi preview ini menjadi pesan yang akan dikirim.'},
+   {level:photo?'ok':'warning',title:photo?'✓ Preview gambar tersedia':'! Gambar tidak tersedia',detail:photo?'Tampilkan gambar + caption. Jika Telegram gagal mengambil foto, bot mengirim judul sebagai teks.':'Bot mengirim judul sebagai teks. Tambahkan URL gambar HTTPS jika ingin ada preview visual.'},
+   {level:chunks.length?'ok':'error',title:'✓ Isi prompt lengkap: '+p.length+' karakter',detail:safeChunks.length+' pesan teks dengan format monospace. '+(safeChunks.length>1?'Prompt dipecah otomatis agar tidak melewati batas pesan Telegram.':'Teks tampil sebagai satu pesan.')},
+   {level:offer.trim()?'ok':'error',title:offer.trim()?'✓ Upselling terpasang':'✕ Upselling belum diisi',detail:'Dikirim setelah seluruh isi prompt, lalu diikuti tombol CTA.'},
+   {level:destination&&label?'ok':'error',title:destination&&label?'✓ Tombol: '+label:'✕ Tombol CTA perlu diperbaiki',detail:destination||'Periksa teks tombol dan tujuan link HTTPS PROMPTIONAL.'},
+   {level:Number.isInteger(hours)&&hours>=1&&hours<=36?'ok':'error',title:'◷ Hapus otomatis setelah '+deletion+' jam',detail:'Jadwal penghapusan dicatat saat pesan dikirim; penghapusan tergantung pemrosesan scheduler dan izin Telegram.'}
+  ];
+  checks.innerHTML=checksList.map(c=>'<div class="mkt-preview-check" data-level="'+c.level+'"><b>'+escape(c.title)+'</b><p>'+escape(c.detail)+'</p></div>').join('');
  }
  async function move(from,to){
   if(from===to)return;
@@ -257,7 +316,7 @@
  $('mktSearch').addEventListener('input',renderCandidates);
  $('mktRefresh').addEventListener('click',()=>void act(refresh));
  $('mktDefaultType').addEventListener('change',()=>{$('mktDefaultUrl').disabled=$('mktDefaultType').value!=='url'});
- $('mktDeleteHours').addEventListener('input',refreshMock);
+ $('mktDeleteHours').addEventListener('input',renderPreview);
  $('mktSettingsForm').addEventListener('submit',e=>{e.preventDefault();void act(async()=>{
   const body={start_date:$('mktStartDate').value,send_time:$('mktTime').value,delete_hours:Number($('mktDeleteHours').value),enabled:$('mktEnabled').value==='true',loop_campaign:$('mktLoop').checked,default_offer:$('mktDefaultOffer').value,default_cta_label:$('mktDefaultLabel').value,default_cta_type:$('mktDefaultType').value,default_cta_url:$('mktDefaultUrl').value};
   if(body.enabled&&!state.settings.enabled&&!confirm('AKTIFKAN kalender 365 hari? Konten yang sudah dijadwalkan akan dikirim otomatis ke member Free sesuai tanggal dan jam WIB.'))return;
@@ -270,10 +329,11 @@
   const assigned=Boolean(selectedPrompt);
   const body={day:selectedDay,source:editing.source,prompt_id:editing.id||editing.prompt_id,offer_text:$('mktEditOffer').value,cta_label:$('mktEditLabel').value,cta_type:$('mktEditType').value,cta_url:$('mktEditUrl').value};
   await request('marketing-slot-save',body);
-  selectedPrompt=null;editing=null;$('mktEditor').hidden=true;
+  selectedPrompt=null;editing=null;
   state=await request('marketing-get');updateBoard();
   if(assigned)animateTransfer(origin,document.querySelector('[data-mkt-day="'+selectedDay+'"]'),'mkt-day-arrived');
   $('mktSelection').textContent='Belum memilih prompt';
+  chooseDay(selectedDay);
   notice('Hari '+selectedDay+' disimpan! Preview dan tombol CTA mengikuti pengaturan hari tersebut.','success');
  })});
  $('mktCloseEditor').addEventListener('click',()=>{$('mktEditor').hidden=true;editing=null});
@@ -292,6 +352,7 @@
   e.preventDefault();const day=draggingSlotDay;draggingSlotDay=null;
   void returnToLibrary(day);
  });
- ['mktEditOffer','mktEditLabel','mktEditType','mktEditUrl'].forEach(id=>$(id).addEventListener('input',refreshMock));
+ ['mktEditOffer','mktEditLabel','mktEditType','mktEditUrl'].forEach(id=>$(id).addEventListener('input',renderPreview));
+ $('mktPreviewReload').addEventListener('click',()=>{if(editing)void loadPreview(true)});
  document.querySelector('[data-tg-tab="content"]')?.addEventListener('click',()=>{if(!loaded)void act(refresh)});
 })();

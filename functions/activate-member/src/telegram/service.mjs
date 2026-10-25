@@ -44,6 +44,7 @@ export class Service{
   if(action==='broadcast-send-batch'){const v=await this.engagement.sendBatch(body,actor.$id);await this.audit(actor.$id,action,{id:v.campaign.id,count:v.batch.sent});return v}
   if(action==='marketing-get')return this.marketing.get();
   if(action==='marketing-candidates')return this.marketing.candidates(body);
+  if(action==='marketing-preview')return this.marketing.previewContent(body);
   if(action==='marketing-settings'){
     const result=await this.marketing.saveSettings(body,actor.$id);
     await this.audit(actor.$id,action,{enabled:result.settings.enabled,start_date:result.settings.start_date});
