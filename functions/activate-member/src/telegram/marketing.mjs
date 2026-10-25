@@ -79,34 +79,27 @@ export class Marketing{
  async calendar(){
   const [library,overrides,settings]=await Promise.all([this.published(),this.overrides(),this.config()]);
   const byId=new Map(library.map(p=>[p.$id,p]));
-  const byDay=new Map(overrides.map(x=>[x.day,x]));
-  const reserved=new Set(overrides.filter(x=>x.status==='scheduled').map(x=>x.prompt_id));
-  const remaining=library.filter(p=>!reserved.has(p.$id));
-  const rotation=remaining;
-  const slots=[];let next=0;
-  for(let day=1;day<=365;day++){
-   const saved=byDay.get(day);
-   if(saved?.status==='empty')continue; // Admin deliberately left this day blank.
-   const position=next;
-   const prompt=saved?.status==='scheduled'?byId.get(saved.prompt_id):rotation.length?rotation[(next++)%rotation.length]:null;
-   if(!prompt){
-    if(saved?.status==='scheduled')slots.push({...saved,day,automatic:false,needs_review:true});
-    continue;
-   }
-   const meta=saved?.status==='scheduled'?saved:settings;
+  // Telegram is a manual queue: publishing creates a library item, not a send.
+  // Existing saved slots are preserved, including references needing review.
+  const slots=[];
+  for(const saved of overrides.filter(x=>x.status==='scheduled')){
+   const day=Number(saved.day),prompt=byId.get(saved.prompt_id);
+   if(!Number.isInteger(day)||day<1||day>365)continue;
+   if(!prompt){slots.push({...saved,day,automatic:false,needs_review:true});continue;}
    slots.push({day,source:PROMPT_LIBRARY,prompt_id:prompt.$id,title:prompt.title,
     category:prompt.category||'',preview_url:prompt.preview_url,
-    offer_text:meta.offer_text??settings.default_offer,
-    cta_label:meta.cta_label??settings.default_cta_label,
-    cta_type:meta.cta_type??settings.default_cta_type,
-    cta_url:meta.cta_url??settings.default_cta_url,
-    automatic:!saved,repeat:!saved&&position>=rotation.length,needs_review:false});
+    offer_text:saved.offer_text??settings.default_offer,
+    cta_label:saved.cta_label??settings.default_cta_label,
+    cta_type:saved.cta_type??settings.default_cta_type,
+    cta_url:saved.cta_url??settings.default_cta_url,
+    automatic:false,repeat:false,needs_review:false});
   }
+  slots.sort((a,b)=>a.day-b.day);
   return {library,slots,overrides,settings};
  }
  async get(){
   const {settings,slots,library}=await this.calendar();
-  return {ok:true,settings,slots,library:library.map(p=>({source:PROMPT_LIBRARY,id:p.$id,title:p.title,category:p.category||'',preview_url:p.preview_url,summary:trim(p.prompt_text,145)})),stats:{filled:slots.filter(s=>!s.needs_review).length,empty:365-slots.length,target:365,published:library.length,active:settings.enabled&&this.s.marketingEnabled,campaign_day:campaignDay(settings.start_date,this.s.now(),settings.loop_campaign)},server_gate:Boolean(this.s.marketingEnabled),note:'Sumber konten sama dengan Member Area. Slot otomatis mengikuti prompt yang tayang; pengaturan kirim dan hapus tetap terpisah.'};
+  return {ok:true,settings,slots,library:library.map(p=>({source:PROMPT_LIBRARY,id:p.$id,title:p.title,category:p.category||'',preview_url:p.preview_url,summary:trim(p.prompt_text,145)})),stats:{filled:slots.filter(s=>!s.needs_review).length,empty:365-slots.length,target:365,published:library.length,scheduled:slots.length,unscheduled:library.length-new Set(slots.filter(s=>!s.needs_review).map(s=>s.prompt_id)).size,active:settings.enabled&&this.s.marketingEnabled,campaign_day:campaignDay(settings.start_date,this.s.now(),settings.loop_campaign)},server_gate:Boolean(this.s.marketingEnabled),note:'Perpustakaan selalu sinkron dengan Member Area. Hanya prompt yang diseret dan disimpan pada hari tertentu yang boleh dikirim; hari kosong tidak mengirim.'};
  }
  async candidates({source=PROMPT_LIBRARY}={}){
   if(source!==PROMPT_LIBRARY)throw fail('Semua prompt aktif berasal dari Member Area.',400);
@@ -176,7 +169,7 @@ export class Marketing{
  }
  async forFree(now){
   const s=await this.config();
-  if(!this.s.marketingEnabled||!s.enabled)return null;
+  if(!this.s.marketingEnabled||!s.enabled)return {skip:true,reason:'Admin belum mengaktifkan jadwal konten Telegram',day:0};
   const day=campaignDay(s.start_date,now,s.loop_campaign);
   if(day<1)return {skip:true,reason:'Kampanye belum dimulai',day};
   if(day>365)return {skip:true,reason:'Kampanye 365 hari telah berakhir',day};

@@ -11,12 +11,16 @@ import {manualAccessUntil} from '../functions/payment-api/src/access-policy.mjs'
 import {Telegram} from '../functions/activate-member/src/telegram/transport.mjs';
 import {MemoryTables,MockTelegram} from './fixtures/telegram-memory.mjs';
 const NOW=Date.parse('2026-10-09T23:00:00Z'),TOKEN='123456:FAKE_TEST_TOKEN_DO_NOT_USE_1234567890';
-async function fixture(){
+async function fixture({manual=true}={}){
  const tables=new MemoryTables,store=new Store(tables,Query),telegram=new MockTelegram;
- const s=new Service({store,telegram,key:randomBytes(32).toString('base64'),now:()=>NOW,sendEnabled:true,verifyPaidAccess:async()=>true,verifyUser:async jwt=>{if(jwt!=='member-session')throw Object.assign(Error('Unauthorized'),{status:401});return {$id:'website-user'}},verifyAdmin:async jwt=>{if(jwt!=='admin-session')throw Object.assign(Error('Unauthorized'),{status:403});return {$id:'admin'}}});
+ const s=new Service({store,telegram,key:randomBytes(32).toString('base64'),now:()=>NOW,sendEnabled:true,marketingEnabled:true,verifyPaidAccess:async()=>true,verifyUser:async jwt=>{if(jwt!=='member-session')throw Object.assign(Error('Unauthorized'),{status:401});return {$id:'website-user'}},verifyAdmin:async jwt=>{if(jwt!=='admin-session')throw Object.assign(Error('Unauthorized'),{status:403});return {$id:'admin'}}});
  const {bot}=await s.admin('save',{token:TOKEN,name:'Bot utama'},'admin-session');await store.putState('telegram-settings',{...defaults,enabled:true,paused:false,dry_run:false,main_bot_id:bot.$id});
  await store.create('scene_prompts','published',{is_published:true,title:'Prompt asli',prompt_text:'Teks asli <tag> & karakter 😀',preview_url:'https://example.com/preview.jpg'});
  await store.create('scene_prompts','draft',{is_published:false,title:'Draft',prompt_text:'Rahasia draft'});
+ if(manual){
+  await s.marketing.saveSettings({enabled:true,start_date:'2026-10-10',send_time:'06:00'},'admin');
+  await s.marketing.save({day:1,source:'scene_prompts',prompt_id:'published'},'admin');
+ }
  return {s,store,telegram,tables,bot:await s.bot(bot.$id)};
 }
 const update=(number=1,text='/start',user=777)=>({update_id:number,message:{text,chat:{type:'private',id:user},from:{id:user,first_name:'Penguji',is_bot:false}}});
@@ -26,8 +30,31 @@ test('WIB schedule, exact 365-day renewal, lifetime and expired entitlements',()
 test('token validation, official getMe, redacted public bot and invalid token',async()=>{const f=await fixture();assert(f.bot.token_cipher&&!f.bot.token_cipher.includes(TOKEN));assert(!('token_cipher' in f.s.publicBot(f.bot)));assert(!('webhook_secret' in f.s.publicBot(f.bot)));await assert.rejects(f.s.admin('save',{token:'invalid'},'admin-session'));f.telegram.failMethod='getMe';await assert.rejects(f.s.admin('connection',{bot_id:f.bot.$id},'admin-session'));assert.equal((await f.s.bot(f.bot.$id)).status,'error')});
 test('nonadmin and forged identity cannot administer bot',async()=>{const f=await fixture(),before=f.tables.writes.length;await assert.rejects(f.s.admin('settings',{enabled:true,'x-appwrite-user-id':'admin'},'attacker'));assert.equal(f.tables.writes.length,before)});
 test('invalid secret, forged chat and group update rejected before member creation',async()=>{const f=await fixture();await assert.rejects(f.s.webhook(f.bot.$id,'wrong',update()));const forged=update();forged.message.chat.id=999;await assert.rejects(f.s.webhook(f.bot.$id,f.s.secret(f.bot),forged));const group=update();group.message.chat.type='group';await assert.rejects(f.s.webhook(f.bot.$id,f.s.secret(f.bot),group));assert.equal((await f.store.list('telegram_members')).total,0)});
-test('START registers free, sends original preview/text, and records 24h deletion',async()=>{const f=await fixture(),m=await member(f);assert.equal(m.plan,'free');assert.equal(m.delivery_day,1);const d=(await f.store.list('telegram_deliveries')).rows[0];assert.equal(d.dispatch_status,'sent');assert.equal(Date.parse(d.delete_at)-NOW,24*3600000);assert.equal(JSON.parse(d.message_ids).length,2);assert.equal(f.telegram.calls.find(c=>c.method==='sendPhoto').body.photo,'https://example.com/preview.jpg');assert.equal(f.telegram.calls.find(c=>c.method==='sendMessage').body.text,'<pre>Teks asli &lt;tag&gt; &amp; karakter 😀</pre>')});
-test('duplicate updates and concurrent delivery cannot send another prompt',async()=>{const f=await fixture();const r=await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update());const duplicate=await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update());assert(duplicate.duplicate);const m=await f.store.get('telegram_members',id('member',777));const before=f.telegram.calls.length;await Promise.all([f.s.delivery.prompt(m,f.bot,{key:'same-period'}),f.s.delivery.prompt(m,f.bot,{key:'same-period'})]);assert.equal(f.telegram.calls.length-before,2);assert(r.ok)});
+test('START registers free, sends manually scheduled preview/text/CTA, and records 24h deletion',async()=>{const f=await fixture(),m=await member(f);assert.equal(m.plan,'free');assert.equal(m.delivery_day,1);const d=(await f.store.list('telegram_deliveries')).rows[0];assert.equal(d.dispatch_status,'sent');assert.equal(Date.parse(d.delete_at)-NOW,24*3600000);assert.equal(JSON.parse(d.message_ids).length,3);assert.equal(f.telegram.calls.find(c=>c.method==='sendPhoto').body.photo,'https://example.com/preview.jpg');assert.equal(f.telegram.calls.find(c=>c.method==='sendMessage').body.text,'<pre>Teks asli &lt;tag&gt; &amp; karakter 😀</pre>')});
+test('duplicate updates and concurrent delivery cannot send another prompt',async()=>{const f=await fixture();const r=await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update());const duplicate=await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update());assert(duplicate.duplicate);const m=await f.store.get('telegram_members',id('member',777));const before=f.telegram.calls.length;await Promise.all([f.s.delivery.prompt(m,f.bot,{key:'same-period'}),f.s.delivery.prompt(m,f.bot,{key:'same-period'})]);assert.equal(f.telegram.calls.length-before,3);assert(r.ok)});
+test('without a manually assigned day, START and /prompt cannot send any library prompt',async()=>{
+ const f=await fixture({manual:false}),m=await member(f);
+ assert.equal(m.delivery_day,0);
+ assert.equal(f.telegram.calls.filter(c=>c.method==='sendPhoto').length,0);
+ assert.equal((await f.store.list('telegram_deliveries')).rows.filter(r=>r.kind==='prompt').length,0);
+ const r=await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update(100,'/prompt'));
+ assert(r.ok);
+ assert.equal(f.telegram.calls.filter(c=>c.method==='sendPhoto').length,0);
+ assert.equal((await f.s.marketing.get()).stats.filled,0);
+ await f.store.update('telegram_members',m.$id,{next_send_at:new Date(NOW).toISOString()});
+ const run=await f.s.scheduler();
+ assert.equal(run.sent,0);
+ assert.equal(run.skipped,1);
+ assert.equal(f.telegram.calls.filter(c=>c.method==='sendPhoto').length,0);
+});
+test('a server-disabled Marketing gate never falls back to unscheduled library rotation',async()=>{
+ const f=await fixture();f.s.marketingEnabled=false;
+ const memberId=id('member',777);
+ await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update());
+ const memberRow=await f.store.get('telegram_members',memberId);
+ assert.equal(memberRow.delivery_day,0);
+ assert.equal(f.telegram.calls.filter(c=>c.method==='sendPhoto').length,0);
+});
 test('START existing and /prompt honor free interval; /premium never grants access',async()=>{const f=await fixture();await member(f);await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update(2,'/start'));await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update(3,'/prompt'));await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update(4,'/premium'));const m=await f.store.get('telegram_members',id('member',777));assert.equal(m.delivery_day,1);assert.equal(m.plan,'free');assert.equal((await f.store.list('member_profiles')).total,0);assert.equal(f.telegram.calls.filter(c=>c.method==='sendPhoto').length,1)});
 test('verified one-use linking reuses website account and activates entitlement',async()=>{const f=await fixture();await f.store.create('member_profiles','website-user',{status:'active',access_until:new Date(NOW+365*DAY).toISOString()});await member(f);const link=await f.s.linkToken('member-session'),token=new URL(link.url).searchParams.get('start').slice(5);let m=await f.store.get('telegram_members',id('member',777));m=await f.s.link(m,token);assert.equal(m.appwrite_user_id,'website-user');assert.equal(m.plan,'premium');assert.equal(Date.parse(m.next_send_at),NOW);await assert.rejects(f.s.link(m,token));await assert.rejects(f.s.linkToken('invalid-session'));assert.equal((await f.store.list('member_profiles')).total,1)});
 test('link cannot transfer another user and expired links rejected',async()=>{const f=await fixture();await f.store.create('member_profiles','website-user',{status:'active'});const m=await member(f),link=await f.s.linkToken('member-session'),token=new URL(link.url).searchParams.get('start').slice(5);await f.s.link(m,token);const other=await member(f,888),second=await f.s.linkToken('member-session');await assert.rejects(f.s.link(other,new URL(second.url).searchParams.get('start').slice(5)));const expired='expired';await f.store.putState(id('link',expired),{user_id:'website-user'},{kind:'link',status:'pending',due_at:'2020-01-01T00:00:00Z'});await assert.rejects(f.s.link(m,expired))});

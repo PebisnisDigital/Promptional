@@ -36,12 +36,12 @@ test('Telegram uses four dedicated tabs, with bot controls moved out of Settings
 test('marketing is dedicated to Telegram content, with scheduling, preview and test send',()=>{
  const marketing=html.match(/<section class="view marketing-view telegram-hub" id="v-marketing"[\s\S]*?(?=<\/main>)/)?.[0]||'';
  assert.match(marketing,/TELEGRAM → KONTEN/);
- assert.match(marketing,/Konten & Kalender 365 Hari/);
- assert.match(marketing,/Otomatis memakai prompt tayang yang sama dengan Member Area/);
+ assert.match(marketing,/Perpustakaan & Kalender 365 Hari/);
+ assert.match(marketing,/Teh yang menentukan prompt mana dikirim pada setiap hari/);
  const contentOrder=['id="mktCalendar"','id="mktEditForm"','id="mktSettingsForm"','id="mktTestForm"'].map(id=>marketing.indexOf(id));
  assert.ok(contentOrder.every(n=>n>=0),'all content tools are visible');
  assert.deepEqual(contentOrder.slice().sort((a,b)=>a-b),contentOrder,'content editor is shown before schedule and test');
- assert.match(marketing,/1 · SATU SUMBER PROMPT/);
+ assert.match(marketing,/1 · SATU PERPUSTAKAAN PROMPT/);
  assert.doesNotMatch(marketing,/id="mktSource"/);
  assert.match(marketing,/2 · JADWAL & PENGUJIAN/);
  for(const id of ['mktSettingsForm','mktTestForm','mktCalendar','mktPromptList','mktEditForm','mktMockContent']){
