@@ -32,6 +32,54 @@ test('token validation, official getMe, redacted public bot and invalid token',a
 test('nonadmin and forged identity cannot administer bot',async()=>{const f=await fixture(),before=f.tables.writes.length;await assert.rejects(f.s.admin('settings',{enabled:true,'x-appwrite-user-id':'admin'},'attacker'));assert.equal(f.tables.writes.length,before)});
 test('invalid secret, forged chat and group update rejected before member creation',async()=>{const f=await fixture();await assert.rejects(f.s.webhook(f.bot.$id,'wrong',update()));const forged=update();forged.message.chat.id=999;await assert.rejects(f.s.webhook(f.bot.$id,f.s.secret(f.bot),forged));const group=update();group.message.chat.type='group';await assert.rejects(f.s.webhook(f.bot.$id,f.s.secret(f.bot),group));assert.equal((await f.store.list('telegram_members')).total,0)});
 test('START registers free, sends manually scheduled preview/text/CTA, and records 24h deletion',async()=>{const f=await fixture(),m=await member(f);assert.equal(m.plan,'free');assert.equal(m.delivery_day,1);const d=(await f.store.list('telegram_deliveries')).rows[0];assert.equal(d.dispatch_status,'sent');assert.equal(Date.parse(d.delete_at)-NOW,24*3600000);assert.equal(JSON.parse(d.message_ids).length,3);assert.equal(f.telegram.calls.find(c=>c.method==='sendPhoto').body.photo,'https://example.com/preview.jpg');assert.equal(f.telegram.calls.find(c=>c.method==='sendMessage').body.text,'<pre>Teks asli &lt;tag&gt; &amp; karakter 😀</pre>')});
+test('four preview links are sent as one Telegram album and every photo ID is deleted',async()=>{
+ const f=await fixture();
+ await f.store.update('scene_prompts','published',{
+  preview_url_2:'https://example.com/second.jpg',preview_url_3:'https://example.com/third.jpg',preview_url_4:'https://example.com/fourth.jpg'
+ });
+ await member(f);
+ const groups=f.telegram.calls.filter(call=>call.method==='sendMediaGroup');
+ assert.equal(groups.length,1);
+ assert.deepEqual(groups[0].body.media.map(item=>item.media),[
+  'https://example.com/preview.jpg','https://example.com/second.jpg','https://example.com/third.jpg','https://example.com/fourth.jpg'
+ ]);
+ assert.equal(groups[0].body.media[0].caption,'Selamat datang di PROMPTIONAL! Prompt gratis ini akan dihapus otomatis.\n\nPrompt asli');
+ assert(groups[0].body.media.slice(1).every(item=>!('caption' in item)));
+ assert.equal(f.telegram.calls.filter(call=>call.method==='sendPhoto').length,0);
+ const delivery=(await f.store.list('telegram_deliveries')).rows[0];
+ const ids=JSON.parse(delivery.message_ids);
+ assert.equal(ids.length,6,'4 photo IDs + prompt + upselling message');
+ assert.equal(Date.parse(delivery.delete_at)-NOW,24*3600000);
+ assert((await f.s.delivery.remove(delivery)).ok);
+ const batch=f.telegram.calls.filter(call=>call.method==='deleteMessages');
+ assert.equal(batch.length,1,'album and CTA deleted in one Telegram API call');
+ assert.deepEqual(batch[0].body.message_ids.map(String),ids);
+});
+test('bulk deletion falls back to individual IDs if Telegram rejects batch deletion',async()=>{
+ const f=await fixture();
+ await f.store.update('scene_prompts','published',{preview_url_2:'https://example.com/second.jpg'});
+ await member(f);
+ const delivery=(await f.store.list('telegram_deliveries')).rows[0];
+ f.telegram.failMethod='deleteMessages';f.telegram.error=Object.assign(Error('bulk refused'),{telegramCode:400});
+ assert((await f.s.delivery.remove(delivery)).ok);
+ assert.equal(f.telegram.calls.filter(call=>call.method==='deleteMessage').length,4);
+});
+test('album rejection falls back only on definite error, without replaying ambiguous albums',async()=>{
+ const f=await fixture();
+ await f.store.update('scene_prompts','published',{preview_url_2:'https://example.com/second.jpg',preview_url_3:'https://example.com/third.jpg'});
+ f.telegram.failMethod='sendMediaGroup';f.telegram.error=Object.assign(Error('Telegram rejected album'),{telegramCode:400});
+ await member(f);
+ assert.equal(f.telegram.calls.filter(call=>call.method==='sendMediaGroup').length,1);
+ assert.equal(f.telegram.calls.filter(call=>call.method==='sendPhoto').length,3);
+ assert.equal(JSON.parse((await f.store.list('telegram_deliveries')).rows[0].message_ids).length,5);
+ const bad=await fixture();
+ await bad.store.update('scene_prompts','published',{preview_url_2:'https://example.com/second.jpg'});
+ bad.telegram.failMethod='sendMediaGroup';bad.telegram.error=Object.assign(Error('Network timeout'),{ambiguous:true});
+ const result=await bad.s.webhook(bad.bot.$id,bad.s.secret(bad.bot),update());
+ assert.equal(result.status,'uncertain');
+ assert.equal(bad.telegram.calls.filter(call=>call.method==='sendPhoto').length,0);
+ assert.equal(bad.telegram.calls.filter(call=>call.method==='sendMessage').length,0);
+});
 test('duplicate updates and concurrent delivery cannot send another prompt',async()=>{const f=await fixture();const r=await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update());const duplicate=await f.s.webhook(f.bot.$id,f.s.secret(f.bot),update());assert(duplicate.duplicate);const m=await f.store.get('telegram_members',id('member',777));const before=f.telegram.calls.length;await Promise.all([f.s.delivery.prompt(m,f.bot,{key:'same-period'}),f.s.delivery.prompt(m,f.bot,{key:'same-period'})]);assert.equal(f.telegram.calls.length-before,3);assert(r.ok)});
 test('without a manually assigned day, START and /prompt cannot send any library prompt',async()=>{
  const f=await fixture({manual:false}),m=await member(f);
@@ -98,6 +146,18 @@ test('paid order and profile update commit atomically; repeated event does not r
 test('concurrent paid orders add both years and preserve legacy lifetime',async()=>{const tables=new MemoryTables;for(const order of ['a','b'])await tables.createRow({tableId:'orders',rowId:order,data:{status:'success',paid_at:new Date(NOW).toISOString()}});const args={tables,databaseId:'db',profileTable:'member_profiles',ordersTable:'orders',user:{$id:'user',email:'user@example.com'},Permission:{read:x=>x},Role:{user:x=>x}};await Promise.all(['a','b'].map(orderId=>commitPaidAccess({...args,orderId})));assert.equal(Date.parse((await tables.getRow({tableId:'member_profiles',rowId:'user'})).access_until),NOW+730*DAY);await tables.updateRow({tableId:'member_profiles',rowId:'user',data:{access_until:null}});await tables.createRow({tableId:'orders',rowId:'c',data:{status:'success',paid_at:new Date(NOW).toISOString()}});await commitPaidAccess({...args,orderId:'c'});assert.equal((await tables.getRow({tableId:'member_profiles',rowId:'user'})).access_until,null)});
 test('manual activation grants annual access only when needed and preserves prior terms',()=>{assert.equal(Date.parse(manualAccessUntil(null,'active',null,NOW)),NOW+365*DAY);assert.equal(manualAccessUntil({status:'active'},'active',null,NOW),null);const until=new Date(NOW+100*DAY).toISOString();assert.equal(manualAccessUntil({status:'active',access_until:until},'active',null,NOW),until);assert.throws(()=>manualAccessUntil(null,'active','bad',NOW))});
 test('Telegram transport redacts token errors and never mislabels network failure success',async()=>{const t=new Telegram(async()=>{throw Error('URL with secret token')});await assert.rejects(t.call(TOKEN,'sendMessage',{chat_id:'1'}),e=>e.ambiguous&&!e.message.includes(TOKEN));const rejected=new Telegram(async()=>({json:async()=>({ok:false,error_code:401,description:'Unauthorized'})}));await assert.rejects(rejected.call(TOKEN,'getMe'),e=>e.telegramCode===401)});
+test('Telegram transport accepts album API and returns one message ID for each photo',async()=>{
+ let submitted;
+ const transport=new Telegram(async(url,options)=>{
+  submitted={url,body:JSON.parse(options.body)};
+  return {json:async()=>({ok:true,result:[{message_id:201},{message_id:202}]})};
+ });
+ const media=[{type:'photo',media:'https://example.com/one.webp',caption:'Album'}, {type:'photo',media:'https://example.com/two.webp'}];
+ const sent=await transport.call(TOKEN,'sendMediaGroup',{chat_id:'777',media});
+ assert(submitted.url.endsWith('/sendMediaGroup'));
+ assert.deepEqual(submitted.body.media,media);
+ assert.deepEqual(sent.map(row=>row.message_id),[201,202]);
+});
 test('runtime auth verifies JWT account and confirmed server membership, never caller header',async()=>{const {identityVerifier}=await import('../functions/activate-member/src/telegram/auth.mjs');let membershipQuery;const auth=identityVerifier({getAccount:async jwt=>{if(jwt!=='valid')throw Error('Invalid JWT');return {$id:'verified-user',status:true}},listAdmins:async userId=>{membershipQuery=userId;return [{confirm:false}]}});await assert.rejects(auth.user('forged'),e=>e.status===401);await assert.rejects(auth.admin('valid'),e=>e.status===403);assert.equal(membershipQuery,'verified-user');const confirmed=identityVerifier({getAccount:async()=>({$id:'admin'}),listAdmins:async()=>[{confirm:true}]});assert.equal((await confirmed.admin('valid')).$id,'admin')});
 test('profile alone cannot grant premium without confirmed paid-team access',async()=>{const f=await fixture(),m=await member(f);await f.store.create('member_profiles','website-user',{status:'active',access_until:new Date(NOW+DAY).toISOString()});const linked=await f.store.update('telegram_members',m.$id,{appwrite_user_id:'website-user'});f.s.verifyPaidAccess=async()=>false;assert.equal((await f.s.sync(linked)).plan,'free')});
 test('calendar DRAF stops sends but deletion continues despite any legacy setting',async()=>{const f=await fixture();await member(f);const row=(await f.store.list('telegram_deliveries')).rows[0];await f.store.update('telegram_deliveries',row.$id,{delete_at:new Date(NOW-1000).toISOString()});await f.s.marketing.saveSettings({enabled:false},'admin-session');await f.store.putState('telegram-settings',{...await f.s.config(),enabled:false,paused:true,dry_run:true});const before=f.telegram.calls.filter(c=>c.method.startsWith('send')).length,r=await f.s.scheduler();assert(r.paused);assert.equal(r.deleted,1);assert.equal(f.telegram.calls.filter(c=>c.method.startsWith('send')).length,before)});

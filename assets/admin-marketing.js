@@ -250,25 +250,27 @@
   $('mktPreviewDate').textContent='HARI '+(selectedDay||'—')+' • '+dayName(selectedDay||1)+' • '+(state?.settings?.send_time||'06:00')+' WIB';
   const messages=$('mktPreviewMessages'),checks=$('mktPreviewChecks');
   if(!previewContent){messages.innerHTML='<p>'+escape(previewError||'Memuat gambar dan isi prompt lengkap dari Member Area…')+'</p>';checks.innerHTML='<div class="mkt-preview-check" data-level="'+(previewError?'error':'warning')+'"><b>'+(previewError?'✕ Preview tidak tersedia':'◷ Mengambil konten asli')+'</b><p>'+escape(previewError||'Sumber prompt sedang diperiksa. Tidak ada pesan yang dikirim.')+'</p></div>';return}
-  const p=previewContent,photo=/^https:\/\//i.test(p.preview_url||''),chunks=Array.isArray(p.chunks)?p.chunks:[],safeChunks=chunks.map(chunk=>/^<pre>[\s\S]*<\/pre>$/.test(chunk)?chunk:'<pre>'+escape(chunk)+'</pre>');
-  const headline=photo?'<div class="mkt-tg-message"><img class="mkt-tg-photo" src="'+escape(p.preview_url)+'" alt="Preview gambar '+escape(p.title)+'" loading="lazy" referrerpolicy="no-referrer"><div class="mkt-tg-caption">'+escape(p.caption)+'</div><div class="mkt-tg-footer">'+escape(state.settings.send_time)+' ✓</div></div>':'<div class="mkt-tg-message"><div class="mkt-tg-text">'+escape(p.fallback_title)+'</div><div class="mkt-tg-footer">'+escape(state.settings.send_time)+' ✓</div></div>';
+  const p=previewContent,images=Array.isArray(p.images)?p.images:(p.preview_url?[p.preview_url]:[]),photo=images.length>0,chunks=Array.isArray(p.chunks)?p.chunks:[],safeChunks=chunks.map(chunk=>/^<pre>[\s\S]*<\/pre>$/.test(chunk)?chunk:'<pre>'+escape(chunk)+'</pre>');
+  const imageTags=images.map((url,index)=>'<img class="mkt-tg-photo" src="'+escape(url)+'" alt="Contoh '+(index+1)+' dari '+images.length+' — '+escape(p.title)+'" loading="lazy" referrerpolicy="no-referrer">').join('');
+  const visual=images.length>1?'<div class="mkt-tg-album mkt-tg-album-'+images.length+'" aria-label="Album '+images.length+' gambar">'+imageTags+'</div>':imageTags;
+  const headline=photo?'<div class="mkt-tg-message">'+visual+'<div class="mkt-tg-caption">'+escape(p.caption)+'</div><div class="mkt-tg-footer">'+escape(state.settings.send_time)+' ✓</div></div>':'<div class="mkt-tg-message"><div class="mkt-tg-text">'+escape(p.fallback_title)+'</div><div class="mkt-tg-footer">'+escape(state.settings.send_time)+' ✓</div></div>';
   const promptBubbles=safeChunks.map(chunk=>'<div class="mkt-tg-message"><div class="mkt-tg-text">'+chunk+'</div><div class="mkt-tg-footer">'+escape(state.settings.send_time)+' ✓</div></div>').join('');
   const deletion=Number.isInteger(hours)&&hours>=1&&hours<=36?hours:'[atur durasi]';
   const offerText=offer+'\n\nPesan gratis akan dihapus setelah '+deletion+' jam. Prompt Free berikutnya sesuai kalender harian admin.';
   const upsell='<div class="mkt-tg-message"><div class="mkt-tg-text">'+telegramMarkup(offerText)+'</div>'+(destination&&label?'<a class="mkt-tg-button" href="'+escape(destination)+'" target="_blank" rel="noopener noreferrer">'+escape(label)+' ↗</a>':'<span class="mkt-tg-button" aria-disabled="true">'+escape(label||'TOMBOL CTA BELUM LENGKAP')+'</span>')+'<div class="mkt-tg-footer">'+escape(state.settings.send_time)+' ✓</div></div>';
   messages.innerHTML=headline+promptBubbles+upsell;
   scrollPreview();
-  const image=messages.querySelector('.mkt-tg-photo');if(image)image.addEventListener('error',()=>{
+  messages.querySelectorAll('.mkt-tg-photo').forEach(image=>image.addEventListener('error',()=>{
    const fallback=document.createElement('div');fallback.className='mkt-tg-photo-fallback';fallback.textContent='Gambar tidak berhasil dimuat di preview. Periksa URL gambar.';image.replaceWith(fallback);
    const audit=checks.querySelectorAll('.mkt-preview-check')[1];if(audit){audit.dataset.level='warning';audit.querySelector('b').textContent='! Gambar gagal dimuat';audit.querySelector('p').textContent='Pastikan URL gambar HTTPS dapat dibuka secara publik agar Telegram bisa mengambil foto.'}
    scrollPreview();
-  },{once:true});
-  if(image)image.addEventListener('load',scrollPreview,{once:true});
+  },{once:true}));
+  messages.querySelectorAll('.mkt-tg-photo').forEach(image=>image.addEventListener('load',scrollPreview,{once:true}));
   const slot=slots().get(selectedDay),isAssigned=Boolean(slot&&slot.prompt_id===p.id&&!selectedPrompt);
   const unchanged=isAssigned&&slot.offer_text===offer&&slot.cta_label===label&&slot.cta_type===type&&(slot.cta_url||'')===$('mktEditUrl').value;
   const checksList=[
    {level:unchanged?'ok':'warning',title:unchanged?'✓ Konten sesuai jadwal tersimpan':'! Ada perubahan belum disimpan',detail:unchanged?'Hari '+selectedDay+' • '+dayName(selectedDay):'Klik SIMPAN JADWAL HARI agar isi preview ini menjadi pesan yang akan dikirim.'},
-   {level:photo?'ok':'warning',title:photo?'✓ Preview gambar tersedia':'! Gambar tidak tersedia',detail:photo?'Tampilkan gambar + caption. Jika Telegram gagal mengambil foto, bot mengirim judul sebagai teks.':'Bot mengirim judul sebagai teks. Tambahkan URL gambar HTTPS jika ingin ada preview visual.'},
+   {level:photo?'ok':'warning',title:photo?'✓ '+(images.length>1?'Album '+images.length+' gambar':'1 gambar')+' siap dikirim':'! Gambar tidak tersedia',detail:photo?images.length>1?'Semua gambar dikirim sebagai satu album Telegram, lalu teks prompt dan tombol upselling.':'Tampilkan gambar + caption. Jika Telegram gagal mengambil foto, bot mengirim judul sebagai teks.':'Bot mengirim judul sebagai teks. Tambahkan URL gambar HTTPS jika ingin ada preview visual.'},
    {level:chunks.length?'ok':'error',title:'✓ Isi prompt lengkap: '+p.length+' karakter',detail:safeChunks.length+' pesan teks dengan format monospace. '+(safeChunks.length>1?'Prompt dipecah otomatis agar tidak melewati batas pesan Telegram.':'Teks tampil sebagai satu pesan.')},
    {level:offer.trim()?'ok':'error',title:offer.trim()?'✓ Upselling terpasang':'✕ Upselling belum diisi',detail:'Dikirim setelah seluruh isi prompt, lalu diikuti tombol CTA.'},
    {level:destination&&label?'ok':'error',title:destination&&label?'✓ Tombol: '+label:'✕ Tombol CTA perlu diperbaiki',detail:destination||'Periksa teks tombol dan tujuan link HTTPS PROMPTIONAL.'},

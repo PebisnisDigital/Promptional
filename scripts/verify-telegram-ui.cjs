@@ -39,7 +39,7 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   let marketingSettings={enabled:false,loop_campaign:false,start_date:'2026-10-10',send_time:'06:00',delete_hours:24,timezone:'Asia/Jakarta',
     default_offer:'Suka prompt ini? Buka semua prompt Premium Rp199.000.',default_cta_label:'BUKA PREMIUM',default_cta_type:'premium',default_cta_url:''};
   const library=[
-   {source:'scene_prompts',id:'p1',title:'BP001 • Foto Editorial',category:'Foto',preview_url:'https://example.com/p1.jpg',summary:'Prompt visual pertama'},
+   {source:'scene_prompts',id:'p1',title:'BP001 • Foto Editorial',category:'Foto',preview_url:'https://example.com/p1.jpg',preview_url_2:'https://example.com/p1-2.jpg',preview_url_3:'https://example.com/p1-3.jpg',preview_url_4:'https://example.com/p1-4.jpg',summary:'Prompt visual pertama'},
    {source:'scene_prompts',id:'p2',title:'BP002 • Poster Produk',category:'Bisnis',preview_url:'https://example.com/p2.jpg',summary:'Prompt visual kedua'}
   ];
   await page.route('**/api/telegram/manager',async route=>{
@@ -49,7 +49,8 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
    if(body.action==='marketing-test-send')reply={ok:true,status:'sent',test:true,day:body.day,delivery_id:'test_delivery'};
    if(body.action==='marketing-preview'){
     const chosen=library.find(p=>p.id===body.prompt_id),sample='Isi prompt LENGKAP untuk '+(chosen?.title||'prompt')+' <produk> & AI. '+('Detail visual, komposisi, pencahayaan, ekspresi, dan latar. '.repeat(28));
-    reply={ok:true,prompt:{id:chosen.id,title:chosen.title,preview_url:chosen.preview_url,caption:chosen.title,fallback_title:chosen.title,chunks:['<pre>'+sample.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre>'],length:sample.length}};
+    const images=[chosen.preview_url,chosen.preview_url_2,chosen.preview_url_3,chosen.preview_url_4].filter(Boolean);
+    reply={ok:true,prompt:{id:chosen.id,title:chosen.title,preview_url:chosen.preview_url,images,caption:chosen.title,fallback_title:chosen.title,chunks:['<pre>'+sample.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')+'</pre>'],length:sample.length}};
    }
    if(body.action==='marketing-get')reply={ok:true,settings:marketingSettings,slots:[...slots.values()],library,stats:{filled:slots.size,empty:365-slots.size,target:365,published:library.length,unscheduled:library.length-slots.size,active:false,campaign_day:1},server_gate:false};
    if(body.action==='marketing-slot-save'){const item={...body,title:body.prompt_id==='p1'?'BP001 • Foto Editorial':'BP002 • Poster Produk'};slots.set(body.day,item);reply={ok:true,slot:item}}
@@ -74,7 +75,9 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   await page.locator('[data-mkt-day="1"]').click();
   await page.locator('#mktPreviewMessages pre').waitFor();
   assert.match(await page.locator('#mktPreviewMessages').innerText(),/Isi prompt LENGKAP/);
-  assert.equal(await page.locator('#mktPreviewMessages .mkt-tg-photo').count(),1);
+  assert.equal(await page.locator('#mktPreviewMessages .mkt-tg-photo').count(),4);
+  assert.equal(await page.locator('#mktPreviewMessages .mkt-tg-album').count(),1);
+  assert.match(await page.locator('#mktPreviewChecks').innerText(),/Album 4 gambar/);
   assert.match(await page.locator('#mktPreviewChecks').innerText(),/Ada perubahan belum disimpan/);
   await page.locator('#mktEditOffer').fill('Coba prompt ini, lalu buka Premium Rp199.000 untuk 365 hari.');
   await page.locator('#mktEditLabel').fill('UPGRADE SEKARANG');
