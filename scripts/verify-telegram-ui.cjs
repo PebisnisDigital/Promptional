@@ -75,7 +75,7 @@ const root=path.resolve(__dirname,'..'),output=process.env.UI_ARTIFACTS||path.jo
   await page.locator('#mktPreviewMessages pre').waitFor();
   assert.match(await page.locator('#mktPreviewMessages').innerText(),/Isi prompt LENGKAP/);
   assert.equal(await page.locator('#mktPreviewMessages .mkt-tg-photo').count(),1);
-  assert.match(await page.locator('#mktPreviewChecks').innerText(),/Perubahan belum disimpan/);
+  assert.match(await page.locator('#mktPreviewChecks').innerText(),/Ada perubahan belum disimpan/);
   await page.locator('#mktEditOffer').fill('Coba prompt ini, lalu buka Premium Rp199.000 untuk 365 hari.');
   await page.locator('#mktEditLabel').fill('UPGRADE SEKARANG');
   assert.match(await page.locator('#mktPreviewMessages').innerText(),/Coba prompt ini/);
