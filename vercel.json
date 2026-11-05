@@ -3,11 +3,11 @@
   "rewrites": [
     {
       "source": "/ig",
-      "destination": "/api/ig?catalog=1"
+      "destination": "/api/public-previews?ig=catalog"
     },
     {
       "source": "/ig/:bp",
-      "destination": "/api/ig?bp=:bp"
+      "destination": "/api/public-previews?ig=prompt&bp=:bp"
     },
     {
       "source": "/member",
