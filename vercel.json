@@ -24,6 +24,16 @@
   ],
   "redirects": [
     {
+      "source": "/beli-premium",
+      "destination": "/#daftar",
+      "permanent": false
+    },
+    {
+      "source": "/beli-premium.html",
+      "destination": "/#daftar",
+      "permanent": false
+    },
+    {
       "source": "/",
       "has": [
         {
