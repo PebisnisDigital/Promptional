@@ -25,6 +25,30 @@
   "redirects": [
     {
       "source": "/beli-premium",
+      "has": [
+        {
+          "type": "query",
+          "key": "embed",
+          "value": "1"
+        }
+      ],
+      "destination": "/checkout-frame?embed=1",
+      "permanent": false
+    },
+    {
+      "source": "/beli-premium.html",
+      "has": [
+        {
+          "type": "query",
+          "key": "embed",
+          "value": "1"
+        }
+      ],
+      "destination": "/checkout-frame?embed=1",
+      "permanent": false
+    },
+    {
+      "source": "/beli-premium",
       "destination": "/#daftar",
       "permanent": false
     },
