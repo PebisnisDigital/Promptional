@@ -2,6 +2,14 @@
   "cleanUrls": true,
   "rewrites": [
     {
+      "source": "/ig",
+      "destination": "/api/public-previews?ig=catalog"
+    },
+    {
+      "source": "/ig/:bp",
+      "destination": "/api/public-previews?ig=prompt&bp=:bp"
+    },
+    {
       "source": "/member",
       "destination": "/member.html"
     },

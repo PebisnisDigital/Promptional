@@ -15,6 +15,10 @@ function safeUrl(url){
  }catch{return false}
 }
 module.exports=async function handler(req,res){
+ // Reuse this serverless function for /ig to stay within Vercel Hobby's 12-function cap.
+ if(req.query?.ig==='catalog'||req.query?.ig==='prompt'){
+  return require('../lib/ig-public-page')(req,res);
+ }
  res.setHeader('Content-Type','application/json; charset=utf-8');
  res.setHeader('X-Content-Type-Options','nosniff');
  res.setHeader('Cache-Control','public, s-maxage=300, stale-while-revalidate=600');
